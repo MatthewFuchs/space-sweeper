@@ -50,6 +50,59 @@ final class AppState {
     let activityLog: ActivityLog
     private(set) var activityEntries: [ActivityEntry] = []
 
+    // MARK: Trash & system space
+
+    /// Contents of ~/.Trash; nil until measured or when it can't be read (needs Full Disk Access).
+    private(set) var trash: TrashInfo?
+    /// Purgeable space and Time Machine local snapshots.
+    private(set) var systemSpace: SystemSpaceInfo?
+    private(set) var isEmptyingTrash = false
+
+    /// Re-measures the Trash and system space in the background.
+    func refreshSystemSpace() {
+        Task { [weak self] in
+            let (trash, system) = await Task.detached(priority: .utility) {
+                (TrashInfo.measure(), SystemSpaceInfo.measure())
+            }.value
+            self?.trash = trash
+            self?.systemSpace = system
+        }
+    }
+
+    /// Permanently removes everything in the Trash (after the user confirmed), logging each item.
+    func emptyTrash() {
+        guard let trash, !trash.items.isEmpty, !isEmptyingTrash else { return }
+        isEmptyingTrash = true
+        let items = trash.items.map { DeletionItem(path: $0, size: SizeCalculator.allocatedSize(ofPath: $0), verdict: .allowed) }
+        let service = DeletionService(policy: settings.protectionPolicy(home: homePath), log: activityLog)
+        Task { [weak self] in
+            let outcome = await Task.detached(priority: .userInitiated) {
+                service.perform(items, mode: .permanent, context: "Emptied Trash")
+            }.value
+            guard let self else { return }
+            self.isEmptyingTrash = false
+            self.activityEntries = self.activityLog.entries
+            self.refreshDisk()
+            self.refreshSystemSpace()
+            self.outcome = outcome
+        }
+    }
+
+    /// Deletes Time Machine local snapshots via the administrator prompt.
+    func deleteLocalSnapshots() {
+        Task { [weak self] in
+            do {
+                try await Task.detached { try SystemSpaceInfo.deleteLocalSnapshots() }.value
+                self?.showNotice(AppNotice(kind: .info, title: "Local snapshots deleted",
+                                           message: "macOS may take a minute to report the freed space."))
+            } catch {
+                self?.showNotice(AppNotice(kind: .warning, title: "Snapshots weren't deleted", message: error.localizedDescription))
+            }
+            self?.refreshDisk()
+            self?.refreshSystemSpace()
+        }
+    }
+
     // MARK: Environment
     var disk: DiskInfo? = DiskInfo.current()
     var hasFullDiskAccess = FullDiskAccess.isGranted()
@@ -75,6 +128,7 @@ final class AppState {
         activityEntries = activityLog.entries
         scanRoots = UserDefaults.standard.stringArray(forKey: "scanRoots") ?? [NSHomeDirectory()]
         loadCache()
+        refreshSystemSpace()
     }
 
     // MARK: Notices
@@ -177,6 +231,7 @@ final class AppState {
         case .success(let scanned):
             result = scanned
             loadLastOpenedDates(for: scanned)
+            refreshSystemSpace()
         case .cancelled:
             if result != nil {
                 showNotice(AppNotice(kind: .info, title: "Scan cancelled", message: "Showing your previous results."))
@@ -350,6 +405,7 @@ final class AppState {
         apps.remove(paths: Set(removedPaths))
         activityEntries = activityLog.entries
         refreshDisk()
+        refreshSystemSpace()
         self.outcome = outcome
     }
 

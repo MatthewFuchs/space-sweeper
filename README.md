@@ -36,10 +36,10 @@ Without Full Disk Access the app still works; protected folders appear under **C
 
 | Section | What it is |
 |---|---|
-| **Overview** | Disk total, used and free; a usage breakdown; the biggest *Safe* items; an estimate of reclaimable space. |
+| **Overview** | Disk total, used and free; the biggest *Safe* items; Trash size with Empty Trash; "System data, explained" (purgeable space, Time Machine local snapshots, apps); a usage breakdown; an estimate of reclaimable space. |
 | **Large Files** | Every file above a size threshold (slider, default 500 MB). |
 | **Old Files** | Files not opened or modified in 6/12/24 months, above a minimum size (default 50 MB). |
-| **Folders** | Drill-down tree of folder sizes, largest first. |
+| **Folders** | A space map (treemap: bigger tiles use more space, double-click to open) or a drill-down list, largest first. |
 | **Developer Junk** | Regenerable developer data: Xcode DerivedData, simulators, archives and DeviceSupport; `node_modules`, `.next`, `dist`, `ios/Pods`, virtualenvs, `target/` and `build/` (only next to a project file); package-manager caches (npm, NuGet, Gradle, Maven, Expo, Homebrew, `~/.cache`); app caches; Docker's disk image (view only); Android images and emulators; VM installer images; installers in Downloads. |
 | **Applications** | Apps in `/Applications` and `~/Applications` with version, size and last-used date. Uninstall removes the app plus its leftovers. |
 | **Couldn't Scan** | Folders skipped because macOS protects them, they couldn't be read, or they're cloud placeholders. |
@@ -75,6 +75,18 @@ Sizes are **allocated** space on disk, not logical file length, so sparse files 
 ### Uninstalling apps
 
 Uninstall moves the `.app` to the Trash and lists leftovers found in `~/Library` (Application Support, Caches, Preferences, Containers, Group Containers, Saved Application State, HTTPStorages, WebKit, LaunchAgents, Logs, Cookies). Matches by bundle identifier are ticked; matches by app name only are shown unticked. Apple system apps and SpaceSweeper itself can't be uninstalled, and a running app must be quit first. Apps owned by root or another user trigger the standard macOS administrator prompt.
+
+## Settings
+
+*SpaceSweeper › Settings…* (⌘,): scan on open and default sizes; appearance (System/Light/Dark); scan locations and **folders to always skip**; how recent a change counts as "in use" and whether to offer Delete Permanently; privacy (policy, delete the saved scan, clear the activity log); updates.
+
+## Accessibility
+
+Every checkbox, badge and chart slice has a VoiceOver label; ratings use text and icons, not only colour; decorative graphics are hidden from VoiceOver; animations respect *Reduce Motion*; the space map uses colours that keep white labels readable (WCAG AA for large text). Keyboard: ⌘R rescan, ⌘. cancel, ⌘⌫ Move to Trash…, ⌥⌘A deselect all, Space Quick Look, ⌘? Help.
+
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md), which is also shown in *Settings › Privacy*. In short: no data collection, no network use except optional update checks, and everything stays on your Mac.
 
 ## Project layout
 

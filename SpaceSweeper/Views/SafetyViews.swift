@@ -17,6 +17,8 @@ struct SafetyBadge: View {
             .background(Capsule().fill(level.color.opacity(level == .protected ? 0.12 : 0.14)))
             .help("\(level.title): \(level.meaning)")
             .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(level.accessibilityLabel)
     }
 }
 
@@ -68,6 +70,7 @@ struct InfoButton: View {
         }
         .buttonStyle(.plain)
         .help("What is this?")
+        .accessibilityLabel("More information")
         .popover(isPresented: $isShown, arrowEdge: .bottom) {
             Text(text)
                 .font(.callout)
@@ -127,10 +130,14 @@ struct SafetyFilterBar: View {
     }
 }
 
-/// The screen's primary action: "7.2 GB is safe to delete" with a prominent green "Select Safe Items" button.
+/// The screen's primary action: "7.2 GB is safe to delete" with a prominent green "Select Safe Items" button,
+/// which becomes "Deselect Safe Items" once they are all selected.
 struct SafeActionBar: View {
     let tally: SafetyTally
+    /// True when every Safe item is already checked.
+    var allSelected = false
     var onSelectSafe: () -> Void
+    var onDeselectSafe: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 10) {
@@ -140,11 +147,18 @@ struct SafeActionBar: View {
             Text("\(tally.count) item\(tally.count == 1 ? "" : "s")")
                 .foregroundStyle(.secondary)
             Spacer()
-            Button(action: onSelectSafe) {
-                Label("Select Safe Items", systemImage: "checkmark.circle")
+            if allSelected {
+                Button(action: onDeselectSafe) {
+                    Label("Deselect Safe Items", systemImage: "xmark.circle")
+                }
+                .buttonStyle(.bordered)
+            } else {
+                Button(action: onSelectSafe) {
+                    Label("Select Safe Items", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.green)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -278,6 +292,7 @@ struct SizeWithBar: View {
                 }
             }
             .frame(height: 4)
+            .accessibilityHidden(true)
         }
     }
 }

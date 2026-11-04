@@ -65,6 +65,14 @@ enum Theme {
     static let heroGradient = LinearGradient(
         colors: [Color(red: 0.36, green: 0.52, blue: 0.96), royalBlue, Color(red: 0.16, green: 0.29, blue: 0.75)],
         startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Darker royal-blue shades only, so white labels on map tiles meet contrast guidelines.
+    static let mapPalette: [Color] = [
+        Color(red: 0.12, green: 0.23, blue: 0.62),
+        Color(red: 0.18, green: 0.32, blue: 0.78),
+        royalBlue,
+        Color(red: 0.20, green: 0.38, blue: 0.85),
+        Color(red: 0.15, green: 0.28, blue: 0.70),
+    ]
     /// Shades of royal blue for charts, darkest first.
     static let chartPalette: [Color] = [
         Color(red: 0.12, green: 0.23, blue: 0.62),

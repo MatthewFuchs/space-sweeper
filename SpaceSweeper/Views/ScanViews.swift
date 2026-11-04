@@ -181,6 +181,11 @@ struct DiskSummaryFooter: View {
                 Text("\(disk.available.formattedBytes) free of \(disk.total.formattedBytes)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let trash = state.trash, trash.size > 0 {
+                    Label("\(trash.size.formattedBytes) in Trash", systemImage: "trash")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 if let result = state.result {
                     Text("Scanned \(result.date.formatted(.relative(presentation: .named)))")
                         .font(.caption2)
