@@ -33,6 +33,34 @@ enum IconCache {
     }
 }
 
+/// Loads a file's Finder icon off the main thread (custom icons and app icons can be slow) and caches it.
+/// Shows a generic placeholder until it arrives.
+struct LazyIcon: View {
+    let path: String
+    var size: CGFloat = 16
+    @State private var image: NSImage?
+
+    @MainActor private static var cache: [String: NSImage] = [:]
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image).resizable()
+            } else {
+                Image(systemName: "doc").resizable().scaledToFit().foregroundStyle(.tertiary).padding(size * 0.15)
+            }
+        }
+        .frame(width: size, height: size)
+        .task(id: path) {
+            if let cached = Self.cache[path] { image = cached; return }
+            let path = self.path
+            let loaded = await Task.detached(priority: .utility) { NSWorkspace.shared.icon(forFile: path) }.value
+            Self.cache[path] = loaded
+            image = loaded
+        }
+    }
+}
+
 /// A file plus its safety rating, so the table can sort and filter by safety.
 struct RatedFile: Identifiable, Hashable {
     let record: FileRecord
@@ -60,6 +88,9 @@ struct FileTableView<Header: View>: View {
 
     @Environment(AppState.self) private var state
     @State private var rated: [RatedFile] = []
+    /// True until the first background rating pass finishes.
+    @State private var isRating = true
+    @State private var ratingTask: Task<Void, Never>?
     @State private var visibleLevels: Set<SafetyLevel> = Set(SafetyLevel.allCases)
     @State private var search = ""
     @State private var sortOrder = [KeyPathComparator(\RatedFile.size, order: .reverse)]
@@ -102,11 +133,22 @@ struct FileTableView<Header: View>: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 14)
             Divider()
-            if rows.isEmpty {
+            if isRating && rated.isEmpty && !records.isEmpty {
+                LoadingView(message: "Rating \(records.count) files…")
+            } else if rows.isEmpty {
                 ContentUnavailableView(emptyMessage, systemImage: "doc.text.magnifyingglass")
                     .frame(maxHeight: .infinity)
             } else {
                 table(rows)
+                    .overlay(alignment: .bottomTrailing) {
+                        if state.isLoadingDates {
+                            Label("Loading last-opened dates…", systemImage: "clock")
+                                .font(.caption)
+                                .padding(.horizontal, 10).padding(.vertical, 5)
+                                .background(Capsule().fill(.regularMaterial))
+                                .padding(10)
+                        }
+                    }
             }
             footer(rows)
         }
@@ -129,13 +171,24 @@ struct FileTableView<Header: View>: View {
         .onChange(of: state.junkItems) { _, _ in rate() }
     }
 
-    /// Rates every record. Runs only when the records or junk list change, not on every redraw.
+    /// Rates every record off the main thread (rating resolves paths, which is slow for thousands of rows).
+    /// Runs only when the records or junk list change; the previous rows stay visible meanwhile.
     private func rate() {
         let advisor = state.safetyAdvisor
-        rated = records.map { RatedFile(record: $0, safety: advisor.assess(path: $0.path, modified: $0.modified, isPackage: $0.isPackage)) }
-        let valid = Set(rated.map(\.id))
-        checked.formIntersection(valid)
-        selection.formIntersection(valid)
+        let records = self.records
+        ratingTask?.cancel()
+        isRating = true
+        ratingTask = Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                records.map { RatedFile(record: $0, safety: advisor.assess(path: $0.path, modified: $0.modified, isPackage: $0.isPackage)) }
+            }.value
+            guard !Task.isCancelled else { return }
+            rated = result
+            isRating = false
+            let valid = Set(result.map(\.id))
+            checked.formIntersection(valid)
+            selection.formIntersection(valid)
+        }
     }
 
     /// The sortable table. Kept in its own function so the type checker handles the column builder quickly.

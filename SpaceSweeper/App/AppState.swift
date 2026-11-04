@@ -75,28 +75,60 @@ final class AppState {
         loadCache()
     }
 
+    // MARK: Notices
+
+    /// The error or info banner shown at the top of the window (one at a time; newest wins).
+    var notice: AppNotice?
+
+    func showNotice(_ notice: AppNotice) {
+        self.notice = notice
+    }
+
     // MARK: Cache
+
+    /// True while the last scan is being read from disk at launch.
+    private(set) var isLoadingCache = true
 
     private func loadCache() {
         let cache = self.cache
         Task.detached(priority: .userInitiated) {
-            let cached = cache.load()
-            await MainActor.run {
-                if self.result == nil { self.result = cached }
-            }
+            let loaded = cache.loadResult()
+            await MainActor.run { self.applyCacheLoad(loaded) }
+        }
+    }
+
+    private func applyCacheLoad(_ loaded: ScanCache.LoadResult) {
+        isLoadingCache = false
+        guard result == nil else { return }
+        switch loaded {
+        case .loaded(let cached):
+            result = cached
+        case .missing:
+            break
+        case .outdated:
+            showNotice(AppNotice(kind: .info, title: "Previous results need a rescan",
+                                 message: "They were saved by an older version of SpaceSweeper.", action: .rescan))
+        case .unreadable(let reason):
+            showNotice(AppNotice(kind: .warning, title: "Couldn't open previous results",
+                                 message: reason, action: .rescan))
         }
     }
 
     // MARK: Scanning
 
+    /// True while Spotlight "last opened" dates are being loaded after a scan.
+    private(set) var isLoadingDates = false
+
     /// Starts a background scan of `scanRoots`. Progress is polled 10×/s so the UI never floods.
     func startScan() {
         guard !isScanning else { return }
         let progress = ScanProgress()
-        let options = ScanOptions(roots: scanRoots, homePath: homePath)
-        let cache = self.cache
+        var options = ScanOptions(roots: scanRoots, homePath: homePath)
+        // Show results first; Spotlight dates are loaded lazily afterwards.
+        options.readSpotlightDates = false
         isScanning = true
         scanError = nil
+        if notice?.action == .rescan { notice = nil }
         scanStart = Date()
         self.progress = ScanProgress.Snapshot()
 
@@ -110,12 +142,11 @@ final class AppState {
         scanTask = Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let result = try await FileScanner.scan(options: options, progress: progress)
-                try? cache.save(result)
-                await self?.finishScan(result: result, error: nil)
+                await self?.finishScan(.success(result))
             } catch is CancellationError {
-                await self?.finishScan(result: nil, error: nil)
+                await self?.finishScan(.cancelled)
             } catch {
-                await self?.finishScan(result: nil, error: error.localizedDescription)
+                await self?.finishScan(.failure(error))
             }
         }
     }
@@ -125,15 +156,61 @@ final class AppState {
         scanTask?.cancel()
     }
 
+    private enum ScanOutcome {
+        case success(ScanResult)
+        case cancelled
+        case failure(Error)
+    }
+
     /// Called on the main actor when a scan ends, successfully or not.
-    private func finishScan(result: ScanResult?, error: String?) {
+    private func finishScan(_ outcome: ScanOutcome) {
         pollTask?.cancel()
         pollTask = nil
         scanTask = nil
         isScanning = false
-        if let result { self.result = result }
-        scanError = error
         refreshDisk()
+        switch outcome {
+        case .success(let scanned):
+            result = scanned
+            loadLastOpenedDates(for: scanned)
+        case .cancelled:
+            if result != nil {
+                showNotice(AppNotice(kind: .info, title: "Scan cancelled", message: "Showing your previous results."))
+            }
+        case .failure(let error):
+            let message = [error.localizedDescription, (error as? LocalizedError)?.recoverySuggestion]
+                .compactMap { $0 }.joined(separator: " ")
+            scanError = message
+            showNotice(AppNotice(kind: .error, title: "The scan failed",
+                                 message: result == nil ? message : message + " Showing your previous results.",
+                                 action: .rescan))
+        }
+    }
+
+    /// Loads Spotlight dates in the background, then saves the finished result to the cache.
+    private func loadLastOpenedDates(for scanned: ScanResult) {
+        isLoadingDates = true
+        let cache = self.cache
+        Task { [weak self] in
+            let enriched = await Task.detached(priority: .utility) { () -> ScanResult in
+                var copy = scanned
+                FileScanner.addLastUsedDates(&copy.files)
+                return copy
+            }.value
+            let saveError = await Task.detached(priority: .utility) { () -> String? in
+                do { try cache.save(enriched); return nil } catch { return error.localizedDescription }
+            }.value
+            guard let self else { return }
+            self.isLoadingDates = false
+            // Only apply if no newer scan or deletion replaced the result meanwhile.
+            if self.result?.date == scanned.date && self.result?.files.count == scanned.files.count {
+                self.result = enriched
+            }
+            if let saveError {
+                self.showNotice(AppNotice(kind: .warning, title: "Couldn't save scan results",
+                                          message: "\(saveError) SpaceSweeper will need to rescan next time it opens."))
+            }
+        }
     }
 
     /// Rebuilds the Developer Junk list and reclaimable estimate in the background.
@@ -280,4 +357,42 @@ final class AppState {
         guard !urls.isEmpty else { return }
         NSWorkspace.shared.activateFileViewerSelecting(urls)
     }
+}
+
+/// A banner message: what happened, and optionally one action that fixes it.
+struct AppNotice: Identifiable, Equatable {
+    enum Kind: Equatable {
+        case info, warning, error
+
+        var symbol: String {
+            switch self {
+            case .info: return "info.circle.fill"
+            case .warning: return "exclamationmark.triangle.fill"
+            case .error: return "xmark.octagon.fill"
+            }
+        }
+    }
+
+    /// The single action a banner can offer.
+    enum Action: Equatable {
+        case rescan
+        case openFullDiskAccess
+        case retryApps
+
+        var title: String {
+            switch self {
+            case .rescan: return "Rescan"
+            case .openFullDiskAccess: return "Open System Settings"
+            case .retryApps: return "Try Again"
+            }
+        }
+    }
+
+    let id = UUID()
+    var kind: Kind
+    var title: String
+    var message: String
+    var action: Action?
+
+    static func == (lhs: AppNotice, rhs: AppNotice) -> Bool { lhs.id == rhs.id }
 }

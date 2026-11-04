@@ -148,8 +148,7 @@ struct ReviewRow: View {
             } else {
                 Toggle("", isOn: $item.isChecked).toggleStyle(.checkbox).labelsHidden()
             }
-            Image(nsImage: NSWorkspace.shared.icon(forFile: item.path))
-                .resizable().frame(width: 28, height: 28)
+            LazyIcon(path: item.path, size: 28)
                 .opacity(locked ? 0.5 : 1)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

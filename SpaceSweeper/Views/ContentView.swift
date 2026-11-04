@@ -70,9 +70,13 @@ struct ContentView: View {
             detail
                 .navigationTitle(selection.title)
                 .toolbar { ScanToolbar() }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if let notice = state.notice { NoticeBanner(notice: notice) }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if state.isScanning { ScanProgressBar() }
                 }
+                .animation(.easeOut(duration: 0.2), value: state.notice)
         }
         .sheet(item: $state.review) { request in
             ReviewSheet(request: request)
@@ -81,8 +85,8 @@ struct ContentView: View {
             DeletionOutcomeView(outcome: outcome)
         }
         .overlay {
-            if state.isDeleting {
-                ProgressView("Removing…")
+            if state.isDeleting || state.isPreparingUninstall {
+                ProgressView(state.isDeleting ? "Removing…" : "Finding leftover files…")
                     .padding(24)
                     .background(RoundedRectangle(cornerRadius: 12).fill(.regularMaterial))
             }
@@ -108,7 +112,9 @@ struct ContentView: View {
     private var detail: some View {
         let selection = state.selectedSection
         if state.result == nil && selection.needsScan {
-            if state.isScanning {
+            if state.isLoadingCache {
+                LoadingView(message: "Loading your last scan…")
+            } else if state.isScanning {
                 ScanInProgressView()
             } else {
                 NoScanView()

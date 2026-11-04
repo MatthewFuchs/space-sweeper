@@ -235,3 +235,134 @@ final class ScannerTests: XCTestCase {
         XCTAssertEqual(loaded.tree.nodes, result.tree.nodes)
     }
 }
+
+/// Error and loading behaviour: clear scan errors, cache load outcomes, deferred Spotlight dates, update config.
+final class LoadingAndErrorTests: XCTestCase {
+    private func options(_ roots: [String], home: String) -> ScanOptions {
+        var options = ScanOptions(roots: roots, homePath: home)
+        options.trackedFileMinimum = 1_000
+        options.folderKeepMinimum = 0
+        return options
+    }
+
+    // MARK: Scan errors
+
+    func testMissingLocationFailsWithClearError() async throws {
+        let fixture = try TestFixture()
+        let missing = fixture.path("unplugged-drive")
+        do {
+            _ = try await FileScanner.scan(options: options([missing], home: fixture.path), progress: ScanProgress())
+            XCTFail("expected an error")
+        } catch let error as ScanError {
+            guard case .nothingReadable(let failures) = error else { return XCTFail("wrong error \(error)") }
+            XCTAssertEqual(failures.map(\.path), [missing])
+            XCTAssertTrue(error.localizedDescription.contains("unplugged-drive"))
+            XCTAssertNotNil(error.recoverySuggestion)
+        }
+    }
+
+    func testUnreadableLocationFailsWithPermissionReason() async throws {
+        let fixture = try TestFixture()
+        try fixture.file("locked/a.bin", bytes: 100)
+        XCTAssertEqual(chmod(fixture.path("locked"), 0o000), 0)
+        defer { chmod(fixture.path("locked"), 0o755) }
+        do {
+            _ = try await FileScanner.scan(options: options([fixture.path("locked")], home: fixture.path), progress: ScanProgress())
+            XCTFail("expected an error")
+        } catch ScanError.nothingReadable(let failures) {
+            XCTAssertEqual(failures.first?.reason, "Permission denied")
+        }
+    }
+
+    func testOneReadableLocationIsEnough() async throws {
+        let fixture = try TestFixture()
+        try fixture.file("ok/a.bin", bytes: 5_000)
+        let result = try await FileScanner.scan(options: options([fixture.path("ok"), fixture.path("missing")], home: fixture.path),
+                                                progress: ScanProgress())
+        XCTAssertGreaterThan(result.totalSize, 0)
+        XCTAssertTrue(result.skipped.contains { $0.path == fixture.path("missing") }, "the missing one is listed under Couldn't Scan")
+    }
+
+    func testNoLocationsIsAnError() async {
+        do {
+            _ = try await FileScanner.scan(options: options([], home: "/tmp"), progress: ScanProgress())
+            XCTFail("expected an error")
+        } catch {
+            XCTAssertEqual(error as? ScanError, .noLocations)
+        }
+    }
+
+    // MARK: Deferred Spotlight dates
+
+    func testSpotlightDatesCanBeDeferred() async throws {
+        let fixture = try TestFixture()
+        try fixture.file("movie.mov", bytes: 5_000)
+        var opts = options([fixture.path], home: fixture.path)
+        opts.readSpotlightDates = false
+        var result = try await FileScanner.scan(options: opts, progress: ScanProgress())
+        let file = try XCTUnwrap(result.files.first)
+        XCTAssertNil(file.lastUsed, "dates are not read during the scan")
+        XCTAssertFalse(file.kind.isEmpty, "kinds are still filled in")
+        XCTAssertEqual(file.lastOpened, file.accessed, "falls back to the access time meanwhile")
+
+        let sizes = result.files.map(\.size)
+        FileScanner.addLastUsedDates(&result.files)
+        XCTAssertEqual(result.files.map(\.size), sizes, "loading dates changes nothing else")
+    }
+
+    // MARK: Cache load outcomes
+
+    func testCacheLoadOutcomes() async throws {
+        let fixture = try TestFixture()
+        let cache = ScanCache(fileURL: fixture.url("cache/last-scan.json"))
+        guard case .missing = cache.loadResult() else { return XCTFail("expected .missing") }
+
+        try fixture.file("cache/last-scan.json", bytes: 0)
+        try Data("not json".utf8).write(to: cache.fileURL)
+        guard case .outdated = cache.loadResult() else { return XCTFail("damaged JSON is treated as needing a rescan") }
+
+        try fixture.file("data/a.bin", bytes: 5_000)
+        var result = try await FileScanner.scan(options: options([fixture.path("data")], home: fixture.path), progress: ScanProgress())
+        result.version = ScanResult.currentVersion + 1
+        try cache.save(result)
+        guard case .outdated = cache.loadResult() else { return XCTFail("other versions are outdated") }
+
+        result.version = ScanResult.currentVersion
+        try cache.save(result)
+        guard case .loaded(let loaded) = cache.loadResult() else { return XCTFail("expected .loaded") }
+        XCTAssertEqual(loaded.totalSize, result.totalSize)
+
+        XCTAssertEqual(chmod(cache.fileURL.path, 0o000), 0)
+        defer { chmod(cache.fileURL.path, 0o644) }
+        guard case .unreadable = cache.loadResult() else { return XCTFail("permission problems are reported") }
+    }
+
+    // MARK: Applications folder errors
+
+    func testUnreadableApplicationsFolderIsDetected() throws {
+        let fixture = try TestFixture()
+        try fixture.dir("Apps")
+        try fixture.dir("Readable")
+        XCTAssertEqual(chmod(fixture.path("Apps"), 0o000), 0)
+        defer { chmod(fixture.path("Apps"), 0o755) }
+        XCTAssertEqual(AppScanner.unreadableFolder(in: [fixture.path("Readable"), fixture.path("Apps")]), fixture.path("Apps"))
+        XCTAssertNil(AppScanner.unreadableFolder(in: [fixture.path("Readable"), fixture.path("does-not-exist")]),
+                     "a missing ~/Applications is normal, not an error")
+    }
+
+    // MARK: Update configuration
+
+    func testUpdateConfigurationNeedsHTTPSFeedAndKey() {
+        let key = Data(repeating: 7, count: 32).base64EncodedString()
+        XCTAssertTrue(UpdateConfiguration.isValid(feedURL: "https://example.com/appcast.xml", publicKey: key))
+        XCTAssertFalse(UpdateConfiguration.isValid(feedURL: "", publicKey: key), "empty feed = updates off")
+        XCTAssertFalse(UpdateConfiguration.isValid(feedURL: "http://example.com/appcast.xml", publicKey: key), "https only")
+        XCTAssertFalse(UpdateConfiguration.isValid(feedURL: "https://example.com/appcast.xml", publicKey: ""))
+        XCTAssertFalse(UpdateConfiguration.isValid(feedURL: "https://example.com/appcast.xml", publicKey: "bm90LWEta2V5"), "wrong key length")
+        XCTAssertFalse(UpdateConfiguration.isValid(feedURL: nil, publicKey: nil))
+    }
+
+    func testThisBuildHasUpdatesOffUntilConfigured() {
+        XCTAssertFalse(UpdateConfiguration.isValid(bundle: .main), "no feed URL/key set in this repository yet")
+    }
+}

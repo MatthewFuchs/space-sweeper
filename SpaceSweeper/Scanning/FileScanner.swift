@@ -1,12 +1,37 @@
 import Foundation
 import CoreServices
 
+/// Why a scan produced no results.
+enum ScanError: LocalizedError, Equatable {
+    case noLocations
+    case nothingReadable([SkippedPath])
+
+    var errorDescription: String? {
+        switch self {
+        case .noLocations:
+            return "No scan locations are selected."
+        case .nothingReadable(let failures):
+            let list = failures.map { "\(PathUtil.abbreviate($0.path)) (\($0.reason.lowercased()))" }.joined(separator: ", ")
+            return "Couldn't read \(list)."
+        }
+    }
+
+    var recoverySuggestion: String? {
+        switch self {
+        case .noLocations: return "Add a folder under Scan Locations."
+        case .nothingReadable: return "Check the drive is connected and that SpaceSweeper has Full Disk Access."
+        }
+    }
+}
+
 /// Coordinates a full scan: walks the top levels of each root, scans deeper subtrees in parallel,
 /// splices the results into one tree and enriches large files with Spotlight metadata.
 enum FileScanner {
     static func scan(options: ScanOptions, progress: ScanProgress) async throws -> ScanResult {
         let start = Date()
         let roots = PathUtil.dedupedRoots(options.roots)
+        guard !roots.isEmpty else { throw ScanError.noLocations }
+        var unreadableRoots: [SkippedPath] = []
         let hardLinks = HardLinkRegistry()
 
         var nodes: [TreeNode] = []
@@ -17,6 +42,9 @@ enum FileScanner {
             let top = SubtreeWalker(options: options, rootPath: root, progress: progress,
                                     hardLinks: hardLinks, splitDepth: options.splitDepth)
             top.walk(path: root, name: root, parent: -1, kind: .root, depth: 0, context: WalkContext())
+            if let failure = top.output.skipped.first(where: { $0.path == root }) {
+                unreadableRoots.append(failure)
+            }
 
             let base = Int32(nodes.count)
             for var node in top.output.nodes {
@@ -51,6 +79,10 @@ enum FileScanner {
         }
 
         try Task.checkCancellation()
+        // Every location failed (missing volume, no permission): report it instead of an empty "0 bytes" scan.
+        if unreadableRoots.count == roots.count {
+            throw ScanError.nothingReadable(unreadableRoots)
+        }
         progress.setPhase(.finalizing)
 
         let tree = FolderTree.build(from: nodes, keepMinimum: options.folderKeepMinimum)
@@ -62,7 +94,8 @@ enum FileScanner {
             files.append(FileRecord(path: package.path, size: size, logicalSize: size, modified: package.modified,
                                     accessed: package.accessed, lastUsed: nil, isPackage: true))
         }
-        enrich(&files)
+        addKinds(&files)
+        if options.readSpotlightDates { addLastUsedDates(&files) }
 
         var junk: [JunkHit] = []
         for var hit in output.junk {
@@ -115,13 +148,20 @@ enum FileScanner {
         }
     }
 
-    /// Adds Spotlight "last used" dates and a human-readable kind to each tracked file, in parallel.
-    static func enrich(_ files: inout [FileRecord]) {
+    /// Adds a human-readable kind ("MPEG-4 movie") to each tracked file. Cheap; done during the scan.
+    static func addKinds(_ files: inout [FileRecord]) {
+        for i in files.indices {
+            files[i].kind = FileRecord.kindDescription(forPath: files[i].path, isPackage: files[i].isPackage)
+        }
+    }
+
+    /// Adds Spotlight "last used" dates in parallel. Slower (one metadata query per file), so the app runs it
+    /// after the results are already on screen.
+    static func addLastUsedDates(_ files: inout [FileRecord]) {
         files.withUnsafeMutableBufferPointer { buffer in
             let records = buffer
             DispatchQueue.concurrentPerform(iterations: records.count) { i in
                 records[i].lastUsed = SpotlightMetadata.lastUsedDate(forPath: records[i].path)
-                records[i].kind = FileRecord.kindDescription(forPath: records[i].path, isPackage: records[i].isPackage)
             }
         }
     }

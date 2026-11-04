@@ -4,7 +4,7 @@ A native macOS app (SwiftUI, macOS 14+, Apple Silicon) that finds what's using y
 
 ## Build and run
 
-Requirements: Xcode 16 or newer (built and tested with Xcode 26.3), macOS 14+, an Apple Silicon Mac. No third-party dependencies.
+Requirements: Xcode 16 or newer (built and tested with Xcode 26.3), macOS 14+, an Apple Silicon Mac. One dependency, [Sparkle](https://github.com/sparkle-project/Sparkle) (automatic updates), fetched by Swift Package Manager on first build.
 
 1. Open `SpaceSweeper.xcodeproj`.
 2. Choose the **SpaceSweeper** scheme and **My Mac**, then press **⌘R**.
@@ -103,6 +103,16 @@ Scanning uses `getattrlistbulk(2)`, which was about 20–25% faster than `FileMa
 
 - **Not Mac App Store:** App Store apps must be sandboxed, and SpaceSweeper needs full-disk reads, so distribute directly. Sign with a **Developer ID Application** certificate (Apple Developer Program, $99/year), enable Hardened Runtime (already on), and **notarize** with `xcrun notarytool` so Gatekeeper opens it without warnings.
 - **Licensing and payments:** Paddle, Lemon Squeezy or FastSpring act as merchant of record (they handle sales tax and VAT) and provide license keys. Setapp is an alternative subscription channel. A common model is a free scan with paid cleanup.
-- **Updates:** Sparkle is the standard self-update framework. It's a third-party dependency, so it isn't added yet.
+- **Updates:** built in with [Sparkle 2](https://sparkle-project.org) (see below).
 - **Trust:** the app is offline and reads metadata only. Publish a short privacy policy saying so; the Help screen already states it.
 - **Bundle ID:** `com.mattfuchs.SpaceSweeper`. Change it before the first public release if you plan to sell under a company name, because it can't change afterwards without losing users' settings.
+
+## Releasing updates (Sparkle)
+
+Updates are **off** until the build has a feed URL and a signing key; until then *Check for Updates…* is disabled and Settings says updates aren't set up. To turn them on:
+
+1. **Create a signing key (once).** Run Sparkle's `generate_keys` tool. After the first build it is in `build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/`. It stores the private key in your login Keychain and prints the public key. Back up the private key (`generate_keys -x private-key.txt`) somewhere safe; losing it means existing users can't receive updates.
+2. **Configure the build.** In the SpaceSweeper target's build settings, set `SPARKLE_PUBLIC_KEY` to the printed public key and `SPARKLE_FEED_URL` to the HTTPS address where you'll host `appcast.xml` (for example GitHub Pages, or your website).
+3. **For each release:** bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, archive, sign with Developer ID, notarize, and zip or DMG the app. Then run `generate_appcast <folder-with-releases>`, which signs the archives and writes `appcast.xml`. Upload both to the feed location.
+
+Users get an update prompt on their next automatic check (once a day by default), or via *SpaceSweeper › Check for Updates…*.

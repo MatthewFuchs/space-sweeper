@@ -17,11 +17,31 @@ struct ScanCache {
         try data.write(to: fileURL, options: .atomic)
     }
 
-    /// Returns nil when there is no cache or it was written by an incompatible version.
+    /// Outcome of reading the cache, so the UI can tell "no scan yet" from "saved results are damaged".
+    enum LoadResult {
+        case missing
+        case loaded(ScanResult)
+        /// Written by a different app version; a rescan replaces it.
+        case outdated
+        case unreadable(String)
+    }
+
+    func loadResult() -> LoadResult {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return .missing }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let result = try JSONDecoder().decode(ScanResult.self, from: data)
+            return result.version == ScanResult.currentVersion ? .loaded(result) : .outdated
+        } catch is DecodingError {
+            return .outdated
+        } catch {
+            return .unreadable(error.localizedDescription)
+        }
+    }
+
+    /// The cached result, or nil when missing, outdated or unreadable.
     func load() -> ScanResult? {
-        guard let data = try? Data(contentsOf: fileURL),
-              let result = try? JSONDecoder().decode(ScanResult.self, from: data),
-              result.version == ScanResult.currentVersion else { return nil }
-        return result
+        if case .loaded(let result) = loadResult() { return result }
+        return nil
     }
 }
