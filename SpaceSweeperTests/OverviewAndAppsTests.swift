@@ -152,3 +152,101 @@ final class HelpTests: XCTestCase {
         XCTAssertEqual(Set(HelpContent.dataKinds.map(\.name)).count, HelpContent.dataKinds.count, "names are unique")
     }
 }
+
+/// Treemap layout, Trash measurement, snapshot parsing and DeviceSupport ratings.
+final class SpaceWinsTests: XCTestCase {
+    func testTreemapTilesAreProportionalAndInside() {
+        let rect = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let sizes: [Double] = [500, 250, 120, 80, 30, 20]
+        let tiles = Treemap.layout(sizes: sizes, in: rect)
+        XCTAssertEqual(tiles.count, sizes.count)
+        let total = sizes.reduce(0, +)
+        for (size, tile) in zip(sizes, tiles) {
+            XCTAssertEqual(Double(tile.width * tile.height), size / total * 120_000, accuracy: 1, "area ∝ size")
+            XCTAssertTrue(rect.insetBy(dx: -0.01, dy: -0.01).contains(tile), "tile inside bounds")
+        }
+        for i in tiles.indices {
+            for j in tiles.indices where j > i {
+                let overlap = tiles[i].intersection(tiles[j])
+                XCTAssertTrue(overlap.isNull || overlap.width * overlap.height < 0.01, "tiles \(i) and \(j) don't overlap")
+            }
+        }
+    }
+
+    func testTreemapKeepsInputOrderAndHandlesZeros() {
+        let tiles = Treemap.layout(sizes: [10, 0, 30], in: CGRect(x: 0, y: 0, width: 100, height: 100))
+        XCTAssertEqual(tiles[1], .zero)
+        XCTAssertGreaterThan(tiles[2].width * tiles[2].height, tiles[0].width * tiles[0].height, "results follow input order")
+        XCTAssertEqual(Treemap.layout(sizes: [], in: CGRect(x: 0, y: 0, width: 10, height: 10)), [])
+    }
+
+    func testTreemapTilesAreReasonablySquare() {
+        let tiles = Treemap.layout(sizes: Array(repeating: 1, count: 16), in: CGRect(x: 0, y: 0, width: 400, height: 400))
+        for tile in tiles {
+            XCTAssertLessThan(max(tile.width / tile.height, tile.height / tile.width), 2.5, "squarified, not slivers")
+        }
+    }
+
+    func testTrashMeasurement() throws {
+        let fixture = try TestFixture(name: "Trash")
+        try fixture.file("old.dmg", bytes: 40_000)
+        try fixture.file("folder/a.bin", bytes: 10_000)
+        try fixture.file(".DS_Store", bytes: 10)
+        let trash = try XCTUnwrap(TrashInfo.measure(trashPath: fixture.path))
+        XCTAssertEqual(Set(trash.items), [fixture.path("old.dmg"), fixture.path("folder")], ".DS_Store is not an item")
+        XCTAssertEqual(trash.size, fixture.allocated("old.dmg") + fixture.allocated("folder/a.bin"))
+        XCTAssertNil(TrashInfo.measure(trashPath: fixture.path("missing")), "unreadable Trash reports nil, not 0")
+    }
+
+    func testSnapshotListParsing() {
+        let output = """
+        Snapshots for disk /:
+        com.apple.TimeMachine.2026-11-03-120000.local
+        com.apple.TimeMachine.2026-11-02-083015.local
+        """
+        let dates = SystemSpaceInfo.parseSnapshotList(output)
+        XCTAssertEqual(dates.count, 2)
+        XCTAssertLessThan(dates[0], dates[1], "sorted oldest first")
+        XCTAssertEqual(SystemSpaceInfo.parseSnapshotList("Snapshots for disk /:\n"), [])
+    }
+
+    func testNewestDeviceSupportVersionIsComparedNumerically() {
+        XCTAssertEqual(DevJunkCatalog.newestVersion(["17.9 (21H1)", "17.10 (21J1)", "16.4 (20E1)"]), "17.10 (21J1)")
+        XCTAssertNil(DevJunkCatalog.newestVersion([]))
+    }
+
+    func testOnlyOldDeviceSupportIsRatedSafe() async throws {
+        let home = try TestFixture(name: "home")
+        try home.file("Library/Developer/Xcode/iOS DeviceSupport/16.4 (20E1)/a", bytes: 1_200_000)
+        try home.file("Library/Developer/Xcode/iOS DeviceSupport/18.1 (22B83)/a", bytes: 1_200_000)
+        var options = ScanOptions(roots: [home.path], homePath: home.path)
+        options.folderKeepMinimum = 0
+        let result = try await FileScanner.scan(options: options, progress: ScanProgress())
+        let items = DevJunkCatalog(result: result, home: home.path).items()
+        let old = try XCTUnwrap(items.first { $0.path.hasSuffix("16.4 (20E1)") })
+        let newest = try XCTUnwrap(items.first { $0.path.hasSuffix("18.1 (22B83)") })
+        XCTAssertEqual(old.safety, .safe)
+        XCTAssertTrue(old.title.hasSuffix("(old)"))
+        XCTAssertEqual(newest.safety, .review)
+        XCTAssertTrue(newest.title.hasSuffix("(newest)"))
+    }
+}
+
+/// VoiceOver wording for things that are otherwise conveyed by colour or icons.
+final class AccessibilityTests: XCTestCase {
+    func testSafetyLevelsHaveDistinctSpokenLabels() {
+        let labels = SafetyLevel.allCases.map(\.accessibilityLabel)
+        XCTAssertEqual(Set(labels).count, labels.count, "each rating sounds different")
+        XCTAssertTrue(labels.allSatisfy { $0.hasPrefix("Rated ") })
+    }
+
+    func testMapPaletteIsDarkEnoughForWhiteText() {
+        // Contrast against white must reach WCAG AA for large text (3:1).
+        for color in Theme.mapPalette {
+            let ns = NSColor(color).usingColorSpace(.sRGB)!
+            func linear(_ c: CGFloat) -> CGFloat { c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4) }
+            let luminance = 0.2126 * linear(ns.redComponent) + 0.7152 * linear(ns.greenComponent) + 0.0722 * linear(ns.blueComponent)
+            XCTAssertGreaterThanOrEqual(1.05 / (luminance + 0.05), 3.0)
+        }
+    }
+}

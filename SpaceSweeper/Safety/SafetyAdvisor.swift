@@ -45,6 +45,9 @@ enum SafetyLevel: Int, Codable, Comparable, CaseIterable, Sendable {
         }
     }
 
+    /// What VoiceOver reads for a badge, e.g. "Rated Safe to delete".
+    var accessibilityLabel: String { "Rated \(title)" }
+
     var symbol: String {
         switch self {
         case .safe: return "checkmark.shield.fill"

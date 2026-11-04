@@ -51,6 +51,7 @@ struct LazyIcon: View {
             }
         }
         .frame(width: size, height: size)
+        .accessibilityHidden(true)
         .task(id: path) {
             if let cached = Self.cache[path] { image = cached; return }
             let path = self.path
@@ -125,9 +126,10 @@ struct FileTableView<Header: View>: View {
                 header()
                 SafetyFilterBar(tallies: tallies, visible: $visibleLevels)
                 if let safe = tallies[.safe], safe.count > 0 {
-                    SafeActionBar(tally: safe) {
-                        checked.formUnion(rated.filter { $0.safety.level == .safe }.map(\.id))
-                    }
+                    let safeIDs = Set(rated.filter { $0.safety.level == .safe }.map(\.id))
+                    SafeActionBar(tally: safe, allSelected: safeIDs.isSubset(of: checked),
+                                  onSelectSafe: { checked.formUnion(safeIDs) },
+                                  onDeselectSafe: { checked.subtract(safeIDs) })
                 }
             }
             .padding(.horizontal, 18)
@@ -199,7 +201,7 @@ struct FileTableView<Header: View>: View {
                 if row.safety.level == .protected {
                     Image(systemName: "lock.fill").foregroundStyle(.secondary).help(row.safety.whatItIs)
                 } else {
-                    Toggle("", isOn: binding(for: row.id)).toggleStyle(.checkbox).labelsHidden()
+                    Toggle("Select \(row.name)", isOn: binding(for: row.id)).toggleStyle(.checkbox).labelsHidden()
                 }
             }
             .width(22)
@@ -307,6 +309,7 @@ struct FileNameCell: View {
             Image(nsImage: IconCache.icon(forPath: record.path, isPackage: record.isPackage))
                 .resizable()
                 .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(record.name).lineLimit(1)
                 if let subtitle {
@@ -372,6 +375,13 @@ struct SelectionFooter: View {
                 Text("\(checkedCount) checked · \(checkedSize.formattedBytes)")
                     .font(.callout.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Theme.accent)
+                // Always-visible way back out of a selection (it was only in the checklist menu).
+                Button(action: onUncheckAll) {
+                    Label("Deselect All", systemImage: "xmark.circle.fill")
+                }
+                .buttonStyle(.borderless)
+                .keyboardShortcut("a", modifiers: [.command, .option])
+                .help("Uncheck everything (⌥⌘A)")
                 if let note {
                     Label(note, systemImage: "eye.fill")
                         .font(.caption)
@@ -390,6 +400,7 @@ struct SelectionFooter: View {
                 Button(removeTitle, action: onRemove)
                     .buttonStyle(.borderedProminent)
                     .disabled(checkedCount == 0)
+                    .keyboardShortcut(.delete, modifiers: [.command])
             }
         }
         .padding(.horizontal, 14)

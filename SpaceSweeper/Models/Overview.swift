@@ -98,3 +98,65 @@ enum FileFilters {
         return files.filter { $0.size >= minimumSize && $0.lastActivity < cutoff }
     }
 }
+
+/// Squarified treemap layout (Bruls, Huizing & van Wijk): splits a rectangle into tiles whose areas are
+/// proportional to the given sizes, keeping tiles close to square so they're easy to read and click.
+enum Treemap {
+    /// Returns one rectangle per size, in the same order as `sizes`. Zero or negative sizes get an empty rect.
+    static func layout(sizes: [Double], in rect: CGRect) -> [CGRect] {
+        var result = [CGRect](repeating: .zero, count: sizes.count)
+        let total = sizes.filter { $0 > 0 }.reduce(0, +)
+        guard total > 0, rect.width > 0, rect.height > 0 else { return result }
+        let scale = Double(rect.width * rect.height) / total
+        // Largest first gives the best aspect ratios; remember original positions.
+        let order = sizes.indices.filter { sizes[$0] > 0 }.sorted { sizes[$0] > sizes[$1] }
+        var remaining = rect
+        var row: [Int] = []
+
+        func worst(_ row: [Int], side: Double) -> Double {
+            let areas = row.map { sizes[$0] * scale }
+            let sum = areas.reduce(0, +)
+            guard let maxA = areas.max(), let minA = areas.min(), sum > 0, minA > 0 else { return .infinity }
+            return max(side * side * maxA / (sum * sum), (sum * sum) / (side * side * minA))
+        }
+
+        func place(_ row: [Int]) {
+            let sum = row.reduce(0.0) { $0 + sizes[$1] * scale }
+            if remaining.width >= remaining.height {
+                // Lay the row as a column on the left.
+                let width = CGFloat(sum) / remaining.height
+                var y = remaining.minY
+                for index in row {
+                    let height = CGFloat(sizes[index] * scale) / width
+                    result[index] = CGRect(x: remaining.minX, y: y, width: width, height: height)
+                    y += height
+                }
+                remaining = CGRect(x: remaining.minX + width, y: remaining.minY,
+                                   width: max(0, remaining.width - width), height: remaining.height)
+            } else {
+                // Lay the row along the top.
+                let height = CGFloat(sum) / remaining.width
+                var x = remaining.minX
+                for index in row {
+                    let width = CGFloat(sizes[index] * scale) / height
+                    result[index] = CGRect(x: x, y: remaining.minY, width: width, height: height)
+                    x += width
+                }
+                remaining = CGRect(x: remaining.minX, y: remaining.minY + height,
+                                   width: remaining.width, height: max(0, remaining.height - height))
+            }
+        }
+
+        for index in order {
+            let side = Double(min(remaining.width, remaining.height))
+            if row.isEmpty || worst(row + [index], side: side) <= worst(row, side: side) {
+                row.append(index)
+            } else {
+                place(row)
+                row = [index]
+            }
+        }
+        if !row.isEmpty { place(row) }
+        return result
+    }
+}

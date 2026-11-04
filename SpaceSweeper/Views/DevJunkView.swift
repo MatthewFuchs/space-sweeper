@@ -26,9 +26,10 @@ struct DevJunkView: View {
                     caption: "of developer junk in \(deletable.count) places",
                     help: "Build outputs, caches and downloads that developer tools can recreate. Select an item to see what it is and what happens if you delete it.")
                 if !safe.isEmpty {
-                    SafeActionBar(tally: SafetyTally(count: safe.count, size: safe.reduce(0) { $0 + $1.size })) {
-                        checked.formUnion(safe.map(\.id))
-                    }
+                    SafeActionBar(tally: SafetyTally(count: safe.count, size: safe.reduce(0) { $0 + $1.size }),
+                                  allSelected: Set(safe.map(\.id)).isSubset(of: checked),
+                                  onSelectSafe: { checked.formUnion(safe.map(\.id)) },
+                                  onDeselectSafe: { checked.subtract(safe.map(\.id)) })
                 }
             }
             .padding(.horizontal, 18)
@@ -145,7 +146,7 @@ struct DevJunkRow: View {
     var body: some View {
         HStack(spacing: 10) {
             if item.isDeletable {
-                Toggle("", isOn: $isChecked).toggleStyle(.checkbox).labelsHidden()
+                Toggle("Select \(item.title)", isOn: $isChecked).toggleStyle(.checkbox).labelsHidden()
             } else {
                 Image(systemName: "lock.fill").foregroundStyle(.secondary).frame(width: 16)
             }

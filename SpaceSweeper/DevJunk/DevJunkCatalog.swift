@@ -119,12 +119,18 @@ struct DevJunkCatalog {
 
         for platform in ["iOS", "watchOS", "tvOS", "visionOS"] {
             let base = home("Library/Developer/Xcode/\(platform) DeviceSupport")
-            for version in children(of: base) {
+            let versions = children(of: base)
+            let newest = Self.newestVersion(versions)
+            for version in versions {
                 let path = PathUtil.join(base, version)
+                let isNewest = version == newest
+                // Older versions are only needed for devices you no longer debug on; the newest may still be in use.
                 items.append(DevJunkItem(
-                    path: path, title: "\(platform) DeviceSupport \(version)",
-                    explanation: "Debug symbols copied from a device running \(platform) \(version). Xcode copies them again if you connect a device with that version.",
-                    group: .xcode, size: size(of: path), ownerBundleIDs: xcode))
+                    path: path, title: "\(platform) DeviceSupport \(version)\(isNewest ? " (newest)" : " (old)")",
+                    explanation: isNewest
+                        ? "Debug symbols for your newest \(platform) version. Keep it if you still debug on a device running it."
+                        : "Debug symbols for an older \(platform) version. Xcode copies them again if you connect a device running it.",
+                    group: .xcode, size: size(of: path), safety: isNewest ? .review : .safe, ownerBundleIDs: xcode))
             }
         }
         return items
@@ -257,6 +263,11 @@ struct DevJunkCatalog {
             return "\(grandparent)/\(parentName)"
         }
         return parentName
+    }
+
+    /// Highest version among DeviceSupport folder names like "17.0 (21A329)", compared numerically (17.10 > 17.9).
+    static func newestVersion(_ names: [String]) -> String? {
+        names.max { $0.compare($1, options: .numeric) == .orderedAscending }
     }
 
     /// "com.microsoft.VSCode" → "Visual Studio Code" when the app is installed.

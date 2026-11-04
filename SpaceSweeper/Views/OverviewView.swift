@@ -15,6 +15,10 @@ struct OverviewView: View {
                     let categories = OverviewCalculator.categories(tree: result.tree, home: state.homePath, diskUsed: state.disk?.used)
                     QuickWinsCard(items: Array(state.junkItems.filter { $0.isDeletable && $0.safety == .safe }.prefix(5)))
                     HStack(alignment: .top, spacing: 20) {
+                        TrashCard()
+                        SystemDataCard(otherSize: categories.first { $0.name == "System, apps & other" }?.size ?? 0)
+                    }
+                    HStack(alignment: .top, spacing: 20) {
                         BreakdownCard(categories: categories)
                         VStack(spacing: 20) {
                             ReclaimableCard(estimate: state.reclaimable, isComputing: state.isComputingJunk)
@@ -76,6 +80,8 @@ struct HeroCard: View {
                 }
             }
             .frame(width: 128, height: 128)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(Int((usedFraction * 100).rounded())) percent of disk used")
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(disk.volumeName).font(.headline).opacity(0.85)
@@ -183,6 +189,8 @@ struct BreakdownCard: View {
                 Chart(Array(categories.enumerated()), id: \.element.id) { index, category in
                     SectorMark(angle: .value("Size", category.size), innerRadius: .ratio(0.6), angularInset: 1)
                         .foregroundStyle(color(index))
+                        .accessibilityLabel(category.name)
+                        .accessibilityValue(category.size.formattedBytes)
                 }
                 .chartLegend(.hidden)
                 .frame(height: 220)
@@ -253,6 +261,103 @@ struct ScanInfoCard: View {
                 Button("\(result.skipped.count) folders skipped →") { state.selectedSection = .couldntScan }
                     .buttonStyle(.link)
             }
+        }
+    }
+}
+
+
+/// Trash size with Open / Empty actions. Moving files to the Trash doesn't free space until it's emptied.
+struct TrashCard: View {
+    @Environment(AppState.self) private var state
+    @State private var confirmEmpty = false
+
+    var body: some View {
+        Card(title: "Trash") {
+            if let trash = state.trash {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(trash.size.formattedBytes)
+                        .font(.system(size: 26, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.accent)
+                    Text("in \(trash.items.count) item\(trash.items.count == 1 ? "" : "s")").foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button("Open Trash") {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent(".Trash"))
+                    }
+                    Button("Empty Trash…") { confirmEmpty = true }
+                        .disabled(trash.items.isEmpty || state.isEmptyingTrash)
+                    if state.isEmptyingTrash { ProgressView().controlSize(.small) }
+                }
+            } else {
+                Text("Grant Full Disk Access to see what's in the Trash.").foregroundStyle(.secondary)
+                Button("Open System Settings") { FullDiskAccess.openSettings() }
+            }
+        }
+        .alert("Empty the Trash?", isPresented: $confirmEmpty) {
+            Button("Cancel", role: .cancel) {}
+            Button("Empty Trash", role: .destructive) { state.emptyTrash() }
+        } message: {
+            Text("\(state.trash?.size.formattedBytes ?? "") will be erased permanently. This can't be undone.")
+        }
+    }
+}
+
+/// Breaks down "System, apps & other": the space the folder scan can't attribute.
+struct SystemDataCard: View {
+    @Environment(AppState.self) private var state
+    let otherSize: Int64
+    @State private var confirmSnapshots = false
+
+    private var appsSize: Int64? {
+        guard !state.apps.apps.isEmpty, !state.apps.isLoading else { return nil }
+        return state.apps.apps.reduce(0) { $0 + ($1.size ?? 0) }
+    }
+
+    var body: some View {
+        Card(title: "System data, explained") {
+            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 8) {
+                GridRow {
+                    Text("System, apps & other").fontWeight(.medium)
+                    Text(otherSize.formattedBytes).monospacedDigit().fontWeight(.medium)
+                }
+                if !state.scanRoots.contains("/") && !state.scanRoots.contains("/Applications") {
+                    GridRow {
+                        Text("  Applications").foregroundStyle(.secondary)
+                        if let appsSize {
+                            Text(appsSize.formattedBytes).monospacedDigit().foregroundStyle(.secondary)
+                        } else {
+                            ProgressView().controlSize(.mini)
+                        }
+                    }
+                }
+                if let snapshots = state.systemSpace?.snapshotDates {
+                    GridRow {
+                        Text("  Time Machine snapshots").foregroundStyle(.secondary)
+                        Text(snapshots.isEmpty ? "None" : "\(snapshots.count)").foregroundStyle(.secondary)
+                    }
+                }
+                GridRow {
+                    Text("  macOS, memory & other users").foregroundStyle(.secondary)
+                    Text("the rest").foregroundStyle(.tertiary)
+                }
+            }
+            if let purgeable = state.systemSpace?.purgeable, purgeable > 0 {
+                Label("\(purgeable.formattedBytes) more is purgeable: macOS frees it automatically when needed.",
+                      systemImage: "arrow.3.trianglepath")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let count = state.systemSpace?.snapshotDates.count, count > 0 {
+                Button("Delete Local Snapshots…") { confirmSnapshots = true }
+            }
+        }
+        .task { if state.apps.apps.isEmpty && !state.apps.isLoading { state.apps.load() } }
+        .alert("Delete Time Machine local snapshots?", isPresented: $confirmSnapshots) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete Snapshots", role: .destructive) { state.deleteLocalSnapshots() }
+        } message: {
+            Text("Backups on your Time Machine disk are not affected. macOS will ask for your password.")
         }
     }
 }

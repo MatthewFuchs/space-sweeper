@@ -150,7 +150,7 @@ struct ReviewRow: View {
             if locked {
                 Image(systemName: "lock.fill").foregroundStyle(.secondary).frame(width: 16)
             } else {
-                Toggle("", isOn: $item.isChecked).toggleStyle(.checkbox).labelsHidden()
+                Toggle("Include \(item.name)", isOn: $item.isChecked).toggleStyle(.checkbox).labelsHidden()
             }
             LazyIcon(path: item.path, size: 28)
                 .opacity(locked ? 0.5 : 1)

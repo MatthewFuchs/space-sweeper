@@ -1,3 +1,4 @@
+import QuickLook
 import SwiftUI
 
 /// Reference wrapper so tree rows can share one copy of the (large) tree.
@@ -39,18 +40,36 @@ struct FoldersView: View {
     @State private var selection = Set<Int32>()
     @State private var checked = Set<Int32>()
     @State private var search = ""
+    @State private var previewURL: URL?
+    /// Folder shown by the map (nil = top level).
+    @State private var mapFocus: Int32?
+    @AppStorage("foldersShowMap") private var showMap = true
 
     var body: some View {
         VStack(spacing: 0) {
             SummaryHeader(value: folderTotal, caption: folderCaption,
-                          help: "Where your space goes, largest first. Expand a folder to drill down; the badge shows how safe each one is to remove.")
+                          help: "Where your space goes, largest first. In the map, bigger tiles use more space: double-click a folder to open it. In the list, expand folders to drill down.") {
+                Picker("View", selection: $showMap) {
+                    Label("Map", systemImage: "square.grid.3x3.square").tag(true)
+                    Label("List", systemImage: "list.bullet.indent").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Switch between the space map and the folder list")
+            }
                 .padding(18)
             Divider()
             if let store {
-                outline(store)
+                if showMap && search.isEmpty {
+                    FolderMapView(tree: store.tree, focus: $mapFocus, selection: $selection, checked: $checked,
+                                  onPreview: { previewURL = URL(fileURLWithPath: $0) })
+                } else {
+                    outline(store)
+                }
                 footer(store)
             }
         }
+        .quickLookPreview($previewURL)
         .task(id: state.result?.date) { rebuildStore() }
         .onChange(of: state.result?.totalSize) { _, _ in rebuildStore() }
     }
@@ -71,6 +90,7 @@ struct FoldersView: View {
         store = state.result.map { TreeStore(tree: $0.tree) }
         checked.removeAll()
         selection.removeAll()
+        mapFocus = nil
     }
 
     /// With a search term, shows a flat list of matching folders/files; otherwise the expandable tree.
@@ -100,7 +120,7 @@ struct FoldersView: View {
                         Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
                             .help("Protected: SpaceSweeper won't delete this folder")
                     } else {
-                        Toggle("", isOn: binding(row.id)).toggleStyle(.checkbox).labelsHidden()
+                            Toggle("Select \(row.node.name)", isOn: binding(row.id)).toggleStyle(.checkbox).labelsHidden()
                     }
                 }
             }
@@ -139,6 +159,10 @@ struct FoldersView: View {
         } primaryAction: { ids in
             AppState.revealInFinder(ids.map { store.tree.path(of: $0) })
         }
+        .onKeyPress(.space) {
+            togglePreview(store)
+            return .handled
+        }
         .searchable(text: $search, placement: .toolbar, prompt: "Find folder or file")
     }
 
@@ -150,8 +174,17 @@ struct FoldersView: View {
             onCheckAll: { checked.formUnion(selection) },
             onUncheckAll: { checked.removeAll() },
             onReveal: { AppState.revealInFinder(selection.isEmpty ? checkedPaths : selection.map { store.tree.path(of: $0) }) },
-            onQuickLook: nil,
+            onQuickLook: { togglePreview(store) },
             onRemove: state.deletionEnabled ? { state.requestDeletion(paths: checkedPaths) } : nil)
+    }
+
+    /// Space bar / Quick Look button: previews the selected item, or closes the preview.
+    private func togglePreview(_ store: TreeStore) {
+        if previewURL != nil {
+            previewURL = nil
+        } else if let id = selection.first, store.tree.nodes[Int(id)].kind != .other {
+            previewURL = URL(fileURLWithPath: store.tree.path(of: id))
+        }
     }
 
     private func binding(_ id: Int32) -> Binding<Bool> {
@@ -204,5 +237,172 @@ struct SizeBar: View {
         }
         .frame(height: 8)
         .help(fraction.formatted(.percent.precision(.fractionLength(1))) + " of parent folder")
+        .accessibilityLabel(fraction.formatted(.percent.precision(.fractionLength(0))) + " of parent folder")
+    }
+}
+
+
+/// Squarified treemap of one folder: each tile's area is proportional to its size.
+/// Click selects, double-click opens a folder (or previews a file), breadcrumbs go back up.
+struct FolderMapView: View {
+    let tree: FolderTree
+    @Binding var focus: Int32?
+    @Binding var selection: Set<Int32>
+    @Binding var checked: Set<Int32>
+    var onPreview: (String) -> Void
+
+    /// Tiles shown at most; the rest are drawn as one "smaller items" tile to keep the map readable.
+    private let maxTiles = 60
+
+    /// Children of the focused folder (or the scan roots / single root's children at the top).
+    private var children: [Int32] {
+        if let focus { return tree.nodes[Int(focus)].children }
+        if tree.rootIDs.count == 1, let root = tree.rootIDs.first { return tree.nodes[Int(root)].children }
+        return tree.rootIDs
+    }
+
+    /// Path from the top level to the focused folder, for breadcrumbs.
+    private var trail: [Int32] {
+        var ids: [Int32] = []
+        var current = focus
+        while let id = current {
+            ids.insert(id, at: 0)
+            let parent = tree.nodes[Int(id)].parent
+            current = parent >= 0 && !(tree.rootIDs.count == 1 && tree.rootIDs.contains(parent)) ? parent : nil
+        }
+        return ids
+    }
+
+    var body: some View {
+        let ids = Array(children.filter { tree.nodes[Int($0)].size > 0 }.prefix(maxTiles))
+        let restSize = children.dropFirst(maxTiles).reduce(Int64(0)) { $0 + tree.nodes[Int($1)].size }
+        VStack(alignment: .leading, spacing: 0) {
+            breadcrumbs
+            GeometryReader { geometry in
+                let sizes = ids.map { Double(tree.nodes[Int($0)].size) } + (restSize > 0 ? [Double(restSize)] : [])
+                let rects = Treemap.layout(sizes: sizes, in: CGRect(origin: .zero, size: geometry.size).insetBy(dx: 6, dy: 6))
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(ids.enumerated()), id: \.element) { index, id in
+                        tile(id: id, rect: rects[index], colorIndex: index)
+                    }
+                    if restSize > 0, let rect = rects.last {
+                        MapTile(title: "\(children.count - ids.count) smaller items", size: restSize,
+                                color: Color.gray.opacity(0.35), isSelected: false, symbol: "ellipsis")
+                            .frame(width: max(0, rect.width - 2), height: max(0, rect.height - 2))
+                            .position(x: rect.midX, y: rect.midY)
+                    }
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Space map")
+        }
+    }
+
+    private var breadcrumbs: some View {
+        HStack(spacing: 4) {
+            Button {
+                focus = nil
+                selection.removeAll()
+            } label: {
+                Label(topTitle, systemImage: "house")
+            }
+            .buttonStyle(.borderless)
+            ForEach(trail, id: \.self) { id in
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary).accessibilityHidden(true)
+                Button(tree.nodes[Int(id)].name) {
+                    focus = id
+                    selection.removeAll()
+                }
+                .buttonStyle(.borderless)
+            }
+            Spacer()
+            Text("Double-click a folder to open it").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
+
+    private var topTitle: String {
+        if tree.rootIDs.count == 1, let root = tree.rootIDs.first { return PathUtil.abbreviate(tree.nodes[Int(root)].name) }
+        return "All locations"
+    }
+
+    private func tile(id: Int32, rect: CGRect, colorIndex: Int) -> some View {
+        let node = tree.nodes[Int(id)]
+        let isFolder = (node.kind == .directory || node.kind == .package || node.kind == .root) && !node.children.isEmpty
+        let color: Color = node.kind == .other ? Color.gray.opacity(0.35)
+            : Theme.mapPalette[colorIndex % Theme.mapPalette.count]
+        return MapTile(title: node.name, size: node.size, color: color, isSelected: selection.contains(id),
+                       symbol: node.kind == .other ? "ellipsis" : (isFolder ? "folder.fill" : nil),
+                       isChecked: checked.contains(id))
+            .frame(width: max(0, rect.width - 2), height: max(0, rect.height - 2))
+            .position(x: rect.midX, y: rect.midY)
+            .onTapGesture(count: 2) {
+                if isFolder {
+                    focus = id
+                    selection.removeAll()
+                } else if node.kind != .other {
+                    onPreview(tree.path(of: id))
+                }
+            }
+            .onTapGesture { selection = node.kind == .other ? [] : [id] }
+            .contextMenu {
+                if node.kind != .other {
+                    if isFolder { Button("Open") { focus = id } }
+                    Button("Quick Look") { onPreview(tree.path(of: id)) }
+                    Button("Reveal in Finder") { AppState.revealInFinder([tree.path(of: id)]) }
+                    Divider()
+                    if checked.contains(id) {
+                        Button("Uncheck") { checked.remove(id) }
+                    } else {
+                        Button("Check for Removal") { checked.insert(id) }
+                    }
+                }
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint(isFolder ? "Double-tap to open this folder" : "")
+    }
+}
+
+/// One rectangle in the space map. Shows its name and size when there's room; always has a tooltip.
+struct MapTile: View {
+    let title: String
+    let size: Int64
+    let color: Color
+    let isSelected: Bool
+    var symbol: String?
+    var isChecked = false
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(color.gradient)
+                RoundedRectangle(cornerRadius: 5)
+                    .strokeBorder(isSelected ? Color.white : Color.white.opacity(0.15), lineWidth: isSelected ? 3 : 1)
+                if geometry.size.width > 70 && geometry.size.height > 34 {
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 4) {
+                            if let symbol { Image(systemName: symbol).font(.caption2) }
+                            Text(title).font(.caption.weight(.semibold)).lineLimit(1)
+                        }
+                        Text(size.formattedBytes).font(.caption2.monospacedDigit()).opacity(0.85)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(6)
+                }
+                if isChecked {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.white, .green)
+                        .padding(5)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .help("\(title) · \(size.formattedBytes)")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(size.formattedBytes)\(isChecked ? ", checked" : "")")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

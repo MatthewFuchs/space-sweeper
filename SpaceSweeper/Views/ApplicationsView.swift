@@ -61,7 +61,7 @@ struct ApplicationsView: View {
         Table(rows, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("") { (app: AppInfo) in
                 if app.protectionReason == nil {
-                    Toggle("", isOn: binding(app.id)).toggleStyle(.checkbox).labelsHidden()
+                    Toggle("Select \(app.name)", isOn: binding(app.id)).toggleStyle(.checkbox).labelsHidden()
                 } else {
                     Image(systemName: "lock.fill").foregroundStyle(.secondary).help(app.protectionReason ?? "")
                 }

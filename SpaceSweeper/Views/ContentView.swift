@@ -44,6 +44,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
 /// Main window: sidebar navigation, toolbar and the selected section.
 struct ContentView: View {
     @Environment(AppState.self) private var state
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         @Bindable var state = state
         let selection = state.selectedSection
@@ -76,7 +77,7 @@ struct ContentView: View {
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     if state.isScanning { ScanProgressBar() }
                 }
-                .animation(.easeOut(duration: 0.2), value: state.notice)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: state.notice)
         }
         .sheet(item: $state.review) { request in
             ReviewSheet(request: request)
