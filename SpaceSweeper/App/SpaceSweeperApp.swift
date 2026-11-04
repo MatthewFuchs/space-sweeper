@@ -45,6 +45,7 @@ struct SpaceSweeperApp: App {
 struct RootView: View {
     @Environment(AppState.self) private var state
     @AppStorage(AppSettings.Key.appearance) private var appearance = AppearanceMode.system.rawValue
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         Group {
@@ -55,6 +56,11 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(AppearanceMode(rawValue: appearance)?.colorScheme)
+        .onAppear {
+            #if DEBUG
+            DebugLaunch.run(state: state, openSettings: { openSettings() })
+            #endif
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             state.refreshFullDiskAccess()
             state.refreshDisk()
