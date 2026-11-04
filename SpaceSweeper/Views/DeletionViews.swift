@@ -30,7 +30,8 @@ struct ReviewSheet: View {
                     ReviewRow(item: $item)
                 }
             }
-            .listStyle(.inset(alternatesRowBackgrounds: true))
+            // No alternating stripes: with few items they filled the empty space below the rows.
+            .listStyle(.inset)
             Divider()
             footer(removable)
                 .padding(16)
@@ -169,7 +170,9 @@ struct ReviewRow: View {
                     Text("\(safety.whatItIs). \(safety.ifDeleted)")
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    ForEach(item.verdict.warnings + safety.notes.filter { note in !item.verdict.warnings.contains { note.hasPrefix($0) } }, id: \.self) { warning in
+                    // The rating's notes already cover the policy's warnings (recent change, Documents/Desktop),
+                    // so show them once rather than twice in different words.
+                    ForEach(safety.notes, id: \.self) { warning in
                         Label(warning, systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
@@ -210,6 +213,7 @@ struct DeletionOutcomeView: View {
                     Image(systemName: "info.circle").foregroundStyle(Theme.accent)
                     Text("Items in the Trash still use disk space. Empty the Trash in Finder to free \(outcome.removedSize.formattedBytes).")
                         .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Theme.accent.opacity(0.08)))
