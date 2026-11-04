@@ -15,6 +15,8 @@ struct ScanOptions: Sendable {
     /// Read Spotlight "last used" dates during the scan. The app turns this off and loads them afterwards,
     /// so results appear sooner.
     var readSpotlightDates = true
+    /// Folders the user excluded in Settings; never entered and listed under Couldn't Scan.
+    var excludedPaths: [String] = []
 }
 
 struct WalkContext: Sendable {
@@ -112,6 +114,10 @@ final class SubtreeWalker {
 
             case .directory:
                 count += 1
+                if options.excludedPaths.contains(where: { PathUtil.isSameOrDescendant(childPath, of: $0) }) {
+                    output.skipped.append(SkippedPath(path: childPath, reason: "Excluded in Settings"))
+                    continue
+                }
                 if let reason = SkipRules.exclusionReason(path: childPath, name: entry.name, root: rootPath) {
                     output.skipped.append(SkippedPath(path: childPath, reason: reason))
                     continue

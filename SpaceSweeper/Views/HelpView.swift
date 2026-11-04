@@ -122,3 +122,35 @@ struct HelpView: View {
         }
     }
 }
+
+/// The full privacy policy, shown from Settings › Privacy.
+struct PrivacyPolicyView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Privacy Policy").font(.largeTitle.weight(.semibold))
+                    Text("Effective \(HelpContent.privacyPolicyDate)").foregroundStyle(.secondary)
+                    ForEach(HelpContent.privacyPolicy, id: \.heading) { section in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(section.heading).font(.headline)
+                            Text(section.body).fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                        }
+                    }
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Divider()
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(12)
+        }
+        .frame(width: 560, height: 560)
+    }
+}

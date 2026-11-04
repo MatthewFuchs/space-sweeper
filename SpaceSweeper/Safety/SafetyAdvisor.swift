@@ -99,7 +99,7 @@ struct SafetyAdvisor: Sendable {
 
         // 2. Recent changes mean the item may be in use, so it is never rated "safe".
         if let modified, policy.now.timeIntervalSince(modified) < policy.recentInterval {
-            assessment.notes.append("Changed in the last 7 days, so it may still be in use.")
+            assessment.notes.append("Changed in the last \(policy.recentDays) days, so it may still be in use.")
             if assessment.level == .safe { assessment.level = .review }
         }
         for warning in verdict.warnings where warning.hasPrefix("Inside your") {

@@ -30,7 +30,7 @@ final class AppState {
 
     /// Rates paths for deletion safety, using the current Developer Junk list for known-regenerable folders.
     var safetyAdvisor: SafetyAdvisor {
-        SafetyAdvisor(policy: ProtectionPolicy(home: homePath), junkItems: junkItems)
+        SafetyAdvisor(policy: settings.protectionPolicy(home: homePath), junkItems: junkItems)
     }
 
     // MARK: Navigation
@@ -63,6 +63,8 @@ final class AppState {
     }
 
     let homePath = NSHomeDirectory()
+    /// User preferences (Settings window).
+    let settings = AppSettings()
     private let cache: ScanCache
     private var scanTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
@@ -99,6 +101,7 @@ final class AppState {
 
     private func applyCacheLoad(_ loaded: ScanCache.LoadResult) {
         isLoadingCache = false
+        defer { if settings.scanOnLaunch { startScan() } }
         guard result == nil else { return }
         switch loaded {
         case .loaded(let cached):
@@ -124,6 +127,7 @@ final class AppState {
         guard !isScanning else { return }
         let progress = ScanProgress()
         var options = ScanOptions(roots: scanRoots, homePath: homePath)
+        options.excludedPaths = settings.excludedPaths
         // Show results first; Spotlight dates are loaded lazily afterwards.
         options.readSpotlightDates = false
         isScanning = true
@@ -305,7 +309,7 @@ final class AppState {
             ?? junk?.size
             ?? result?.tree.size(ofPath: path)
             ?? SizeCalculator.allocatedSize(ofPath: path)
-        let policy = ProtectionPolicy(home: homePath)
+        let policy = settings.protectionPolicy(home: homePath)
         let owners = Set((junk?.ownerBundleIDs ?? []) + RunningAppGuard.ownerBundleIDs(forPath: path, home: homePath))
         return DeletionItem(path: path, size: size, verdict: policy.verdict(for: path, modified: modified),
                             ownerBundleIDs: owners.sorted(),
@@ -325,7 +329,7 @@ final class AppState {
             // Apps owned by root or another user need the administrator prompt instead of failing silently.
             remover = PrivilegedFallbackRemover()
         }
-        let service = DeletionService(policy: ProtectionPolicy(home: homePath), remover: remover, log: activityLog)
+        let service = DeletionService(policy: settings.protectionPolicy(home: homePath), remover: remover, log: activityLog)
         Task { [weak self] in
             let outcome = await Task.detached(priority: .userInitiated) {
                 service.perform(items, mode: mode, context: context)
@@ -347,6 +351,20 @@ final class AppState {
         activityEntries = activityLog.entries
         refreshDisk()
         self.outcome = outcome
+    }
+
+    // MARK: Privacy controls (Settings › Privacy)
+
+    /// Deletes the saved scan and clears results from the window.
+    func clearSavedScan() {
+        try? FileManager.default.removeItem(at: cache.fileURL)
+        result = nil
+    }
+
+    /// Erases the activity log history.
+    func clearActivityLog() {
+        activityLog.clear()
+        activityEntries = []
     }
 
     // MARK: Finder helpers

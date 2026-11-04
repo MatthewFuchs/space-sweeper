@@ -10,6 +10,7 @@ struct ReviewSheet: View {
     @State private var request: ReviewRequest
     @State private var runningApps: [NSRunningApplication] = []
     @State private var confirmPermanent = false
+    @AppStorage(AppSettings.Key.showPermanentDelete) private var showPermanentDelete = true
 
     init(request: ReviewRequest) {
         _request = State(initialValue: request)
@@ -114,9 +115,11 @@ struct ReviewSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
-                Button("Delete Permanently…") { confirmPermanent = true }
-                    .disabled(removable.isEmpty || !runningTargets.isEmpty)
-                    .help("Skip the Trash. Asks for confirmation; cannot be undone.")
+                if showPermanentDelete {
+                    Button("Delete Permanently…") { confirmPermanent = true }
+                        .disabled(removable.isEmpty || !runningTargets.isEmpty)
+                        .help("Skip the Trash. Asks for confirmation; cannot be undone.")
+                }
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.defaultAction)

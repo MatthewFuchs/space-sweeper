@@ -43,6 +43,13 @@ final class ActivityLog: @unchecked Sendable {
         }
     }
 
+    /// Removes all history (Settings › Privacy).
+    func clear() {
+        lock.lock(); defer { lock.unlock() }
+        cached = []
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
     private func loadLocked() -> [ActivityEntry] {
         if let cached { return cached }
         let loaded = (try? Data(contentsOf: fileURL)).flatMap { try? JSONDecoder().decode([ActivityEntry].self, from: $0) } ?? []
