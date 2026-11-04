@@ -28,6 +28,28 @@ final class AppState {
     /// Installed applications (loaded on first visit to the Applications view).
     let apps = AppInventory()
 
+    /// Rates paths for deletion safety, using the current Developer Junk list for known-regenerable folders.
+    var safetyAdvisor: SafetyAdvisor {
+        SafetyAdvisor(policy: ProtectionPolicy(home: homePath), junkItems: junkItems)
+    }
+
+    // MARK: Navigation
+
+    /// Selected sidebar section; lives here so other views (e.g. Overview quick wins) can navigate.
+    var selectedSection: SidebarItem = SidebarItem(rawValue: UserDefaults.standard.string(forKey: "selectedSection") ?? "") ?? .overview {
+        didSet { UserDefaults.standard.set(selectedSection.rawValue, forKey: "selectedSection") }
+    }
+
+    // MARK: Deletion state
+
+    /// The pending review sheet; nothing is removed until the user confirms it.
+    var review: ReviewRequest?
+    /// Result of the last deletion, shown in a summary sheet.
+    var outcome: DeletionOutcome?
+    private(set) var isDeleting = false
+    let activityLog: ActivityLog
+    private(set) var activityEntries: [ActivityEntry] = []
+
     // MARK: Environment
     var disk: DiskInfo? = DiskInfo.current()
     var hasFullDiskAccess = FullDiskAccess.isGranted()
@@ -45,8 +67,10 @@ final class AppState {
     private var scanTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
 
-    init(cache: ScanCache = .standard) {
+    init(cache: ScanCache = .standard, activityLog: ActivityLog = .standard) {
         self.cache = cache
+        self.activityLog = activityLog
+        activityEntries = activityLog.entries
         scanRoots = UserDefaults.standard.stringArray(forKey: "scanRoots") ?? [NSHomeDirectory()]
         loadCache()
     }
@@ -159,13 +183,71 @@ final class AppState {
         if scanRoots.isEmpty { scanRoots = [homePath] }
     }
 
-    // MARK: Removal (implemented in later stages)
+    // MARK: Deletion
 
-    /// Whether list views should offer "Move to Trash…". Enabled once deletion is implemented.
-    var deletionEnabled: Bool { false }
+    var deletionEnabled: Bool { true }
     var uninstallEnabled: Bool { false }
-    func requestDeletion(paths: [String]) {}
     func requestUninstall(_ apps: [AppInfo]) {}
+
+    /// Builds the review sheet for `paths`. Sizes come from the scan when available.
+    func requestDeletion(paths: [String]) {
+        let items = paths.map(makeDeletionItem)
+        guard !items.isEmpty else { return }
+        review = ReviewRequest(title: "Review \(items.count) item\(items.count == 1 ? "" : "s")", kind: .files, items: items)
+    }
+
+    /// Size, protection verdict, safety rating and owning apps for one path.
+    func makeDeletionItem(path: String) -> DeletionItem {
+        var status = stat()
+        let modified = lstat(path, &status) == 0
+            ? Date(timeIntervalSince1970: TimeInterval(status.st_mtimespec.tv_sec)) : nil
+        let junk = junkItems.first { $0.path == path }
+        let size = result?.files.first { $0.path == path }?.size
+            ?? junk?.size
+            ?? result?.tree.size(ofPath: path)
+            ?? SizeCalculator.allocatedSize(ofPath: path)
+        let policy = ProtectionPolicy(home: homePath)
+        let owners = Set((junk?.ownerBundleIDs ?? []) + RunningAppGuard.ownerBundleIDs(forPath: path, home: homePath))
+        return DeletionItem(path: path, size: size, verdict: policy.verdict(for: path, modified: modified),
+                            ownerBundleIDs: owners.sorted(),
+                            safety: safetyAdvisor.assess(path: path, modified: modified))
+    }
+
+    /// Removes the confirmed items off the main thread, then updates results, free space and the log.
+    func performDeletion(_ request: ReviewRequest, mode: DeletionMode) {
+        guard !isDeleting else { return }
+        review = nil
+        isDeleting = true
+        let items = request.items
+        let context: String? = {
+            if case .uninstall(let appPaths) = request.kind {
+                return "Uninstall " + appPaths.map { (($0 as NSString).lastPathComponent as NSString).deletingPathExtension }.joined(separator: ", ")
+            }
+            return nil
+        }()
+        let service = DeletionService(policy: ProtectionPolicy(home: homePath), log: activityLog)
+        Task { [weak self] in
+            let outcome = await Task.detached(priority: .userInitiated) {
+                service.perform(items, mode: mode, context: context)
+            }.value
+            self?.finishDeletion(outcome)
+        }
+    }
+
+    private func finishDeletion(_ outcome: DeletionOutcome) {
+        isDeleting = false
+        let removedPaths = outcome.removed.map(\.path)
+        if var updated = result, !removedPaths.isEmpty {
+            updated.removeItems(atPaths: removedPaths)
+            result = updated
+            let cache = self.cache
+            Task.detached(priority: .utility) { try? cache.save(updated) }
+        }
+        apps.remove(paths: Set(removedPaths))
+        activityEntries = activityLog.entries
+        refreshDisk()
+        self.outcome = outcome
+    }
 
     // MARK: Finder helpers
 

@@ -21,6 +21,10 @@ struct ApplicationsView: View {
     var body: some View {
         let rows = self.rows
         VStack(spacing: 0) {
+            SectionHeader(symbol: "square.grid.2x2", title: "Applications",
+                          subtitle: "Apps in /Applications and ~/Applications. Uninstalling also finds the app's leftover files. Apple system apps are locked.")
+                .padding(18)
+            Divider()
             table(rows)
             footer(rows)
         }
@@ -142,6 +146,10 @@ struct CouldntScanView: View {
             search.isEmpty || $0.path.localizedCaseInsensitiveContains(search) || $0.reason.localizedCaseInsensitiveContains(search)
         }
         VStack(spacing: 0) {
+            SectionHeader(symbol: "exclamationmark.triangle", title: "Couldn't Scan",
+                          subtitle: "Folders that were skipped because macOS protects them, they couldn't be read, or they're cloud placeholders. Their size isn't included anywhere else.")
+                .padding(18)
+            Divider()
             if !state.hasFullDiskAccess {
                 HStack {
                     Image(systemName: "lock.shield").foregroundStyle(Theme.accent)

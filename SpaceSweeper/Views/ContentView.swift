@@ -40,14 +40,16 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
 /// Main window: sidebar navigation, toolbar and the selected section.
 struct ContentView: View {
     @Environment(AppState.self) private var state
-    @SceneStorage("sidebarSelection") private var selection: SidebarItem = .overview
-
     var body: some View {
+        @Bindable var state = state
+        let selection = state.selectedSection
         NavigationSplitView {
-            List(selection: $selection) {
+            List(selection: $state.selectedSection) {
                 Section("Disk") {
                     ForEach(SidebarItem.library) { item in
-                        Label(item.title, systemImage: item.symbol).tag(item)
+                        Label(item.title, systemImage: item.symbol)
+                            .badge(sidebarBadge(item))
+                            .tag(item)
                     }
                 }
                 Section("More") {
@@ -58,7 +60,7 @@ struct ContentView: View {
                     }
                 }
             }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 210)
+            .navigationSplitViewColumnWidth(min: 200, ideal: 230)
             .safeAreaInset(edge: .bottom) { DiskSummaryFooter() }
         } detail: {
             detail
@@ -68,11 +70,39 @@ struct ContentView: View {
                     if state.isScanning { ScanProgressBar() }
                 }
         }
+        .sheet(item: $state.review) { request in
+            ReviewSheet(request: request)
+        }
+        .sheet(item: $state.outcome) { outcome in
+            DeletionOutcomeView(outcome: outcome)
+        }
+        .overlay {
+            if state.isDeleting {
+                ProgressView("Removing…")
+                    .padding(24)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(.regularMaterial))
+            }
+        }
+    }
+
+    /// Size shown next to sidebar items so the biggest opportunities stand out.
+    private func sidebarBadge(_ item: SidebarItem) -> Text? {
+        switch item {
+        case .devJunk:
+            let total = state.junkItems.filter(\.isDeletable).reduce(0) { $0 + $1.size }
+            return total > 0 ? Text(total.formattedBytes) : nil
+        case .largeFiles:
+            let total = (state.result?.files ?? []).filter { $0.size >= 500 * MB }.reduce(0) { $0 + $1.size }
+            return total > 0 ? Text(total.formattedBytes) : nil
+        default:
+            return nil
+        }
     }
 
     /// The selected section, or a scan prompt/progress view when there are no results yet.
     @ViewBuilder
     private var detail: some View {
+        let selection = state.selectedSection
         if state.result == nil && selection != .applications && selection != .activity {
             if state.isScanning {
                 ScanInProgressView()
@@ -88,7 +118,7 @@ struct ContentView: View {
             case .devJunk: DevJunkView()
             case .applications: ApplicationsView()
             case .couldntScan: CouldntScanView()
-            case .activity: ComingSoonView(title: selection.title)
+            case .activity: ActivityLogView()
             }
         }
     }

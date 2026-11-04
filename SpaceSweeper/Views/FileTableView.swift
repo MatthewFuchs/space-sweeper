@@ -33,85 +33,157 @@ enum IconCache {
     }
 }
 
-/// Shared table for file lists (Large Files, Old Files): search, sortable columns, checkboxes,
-/// Reveal in Finder, Quick Look (spacebar) and a running total of the checked size.
+/// A file plus its safety rating, so the table can sort and filter by safety.
+struct RatedFile: Identifiable, Hashable {
+    let record: FileRecord
+    let safety: SafetyAssessment
+
+    var id: String { record.path }
+    var name: String { record.name }
+    var size: Int64 { record.size }
+    var modified: Date { record.modified }
+    var lastOpened: Date { record.lastOpened }
+    var kind: String { record.kind }
+    var path: String { record.path }
+    /// Sort key: safest first when ascending.
+    var safetyRank: Int { safety.level.rawValue }
+}
+
+/// Shared table for file lists (Large Files, Old Files). Every row carries a safety rating with an explanation;
+/// the list can be filtered by rating, and the inspector explains the selected file. Also provides search,
+/// sortable columns, checkboxes, Reveal in Finder, Quick Look (space bar) and a running total of the checked size.
 struct FileTableView<Header: View>: View {
     let records: [FileRecord]
-    /// Called with the checked records when the user asks to remove them. Nil hides the button.
-    var onRemove: (([FileRecord]) -> Void)?
+    /// Shown when no rows match.
+    var emptyMessage = "No files match."
     @ViewBuilder var header: () -> Header
 
+    @Environment(AppState.self) private var state
+    @State private var rated: [RatedFile] = []
+    @State private var visibleLevels: Set<SafetyLevel> = Set(SafetyLevel.allCases)
     @State private var search = ""
-    @State private var sortOrder = [KeyPathComparator(\FileRecord.size, order: .reverse)]
-    @State private var selection = Set<FileRecord.ID>()
-    @State private var checked = Set<FileRecord.ID>()
+    @State private var sortOrder = [KeyPathComparator(\RatedFile.size, order: .reverse)]
+    @State private var selection = Set<RatedFile.ID>()
+    @State private var checked = Set<RatedFile.ID>()
     @State private var previewURL: URL?
+    @AppStorage("showInspector") private var showInspector = true
 
-    private var rows: [FileRecord] {
-        let filtered = search.isEmpty ? records : records.filter {
-            $0.path.localizedCaseInsensitiveContains(search) || $0.kind.localizedCaseInsensitiveContains(search)
+    /// Rows after the safety filter and search, in the current sort order.
+    private var rows: [RatedFile] {
+        rated.filter { row in
+            visibleLevels.contains(row.safety.level) && (search.isEmpty
+                || row.path.localizedCaseInsensitiveContains(search)
+                || row.kind.localizedCaseInsensitiveContains(search)
+                || row.safety.whatItIs.localizedCaseInsensitiveContains(search))
         }
-        return filtered.sorted(using: sortOrder)
+        .sorted(using: sortOrder)
+    }
+
+    private var tallies: [SafetyLevel: SafetyTally] {
+        rated.reduce(into: [:]) { result, row in
+            result[row.safety.level, default: SafetyTally()].count += 1
+            result[row.safety.level, default: SafetyTally()].size += row.size
+        }
     }
 
     var body: some View {
         let rows = self.rows
+        let tallies = self.tallies
         VStack(spacing: 0) {
-            header()
-                .padding(.horizontal)
-                .padding(.vertical, 10)
+            VStack(alignment: .leading, spacing: 12) {
+                header()
+                SafetyFilterBar(tallies: tallies, visible: $visibleLevels)
+                if let safe = tallies[.safe], safe.count > 0 {
+                    SafeSummaryCallout(tally: safe) {
+                        checked.formUnion(rated.filter { $0.safety.level == .safe }.map(\.id))
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 14)
             Divider()
-            table(rows)
+            if rows.isEmpty {
+                ContentUnavailableView(emptyMessage, systemImage: "doc.text.magnifyingglass")
+                    .frame(maxHeight: .infinity)
+            } else {
+                table(rows)
+            }
             footer(rows)
         }
-        .searchable(text: $search, placement: .toolbar, prompt: "Search name, path or kind")
-        .onChange(of: records) { _, newRecords in
-            // Drop checks/selection for rows that disappeared (e.g. after deletion or a rescan).
-            let valid = Set(newRecords.map(\.id))
-            checked.formIntersection(valid)
-            selection.formIntersection(valid)
+        .inspector(isPresented: $showInspector) {
+            inspector
+                .inspectorColumnWidth(min: 240, ideal: 290, max: 380)
         }
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    showInspector.toggle()
+                } label: {
+                    Label("Inspector", systemImage: "sidebar.trailing")
+                }
+                .help("Show or hide details about the selected file")
+            }
+        }
+        .searchable(text: $search, placement: .toolbar, prompt: "Search name, path or kind")
+        .onChange(of: records, initial: true) { _, _ in rate() }
+        .onChange(of: state.junkItems) { _, _ in rate() }
+    }
+
+    /// Rates every record. Runs only when the records or junk list change, not on every redraw.
+    private func rate() {
+        let advisor = state.safetyAdvisor
+        rated = records.map { RatedFile(record: $0, safety: advisor.assess(path: $0.path, modified: $0.modified, isPackage: $0.isPackage)) }
+        let valid = Set(rated.map(\.id))
+        checked.formIntersection(valid)
+        selection.formIntersection(valid)
     }
 
     /// The sortable table. Kept in its own function so the type checker handles the column builder quickly.
-    private func table(_ rows: [FileRecord]) -> some View {
-        Table(rows, selection: $selection, sortOrder: $sortOrder) {
-            TableColumn("") { (record: FileRecord) in
-                Toggle("", isOn: binding(for: record.id))
-                    .toggleStyle(.checkbox)
-                    .labelsHidden()
+    private func table(_ rows: [RatedFile]) -> some View {
+        let maxSize = rows.map(\.size).max() ?? 1
+        return Table(rows, selection: $selection, sortOrder: $sortOrder) {
+            TableColumn("") { (row: RatedFile) in
+                if row.safety.level == .protected {
+                    Image(systemName: "lock.fill").foregroundStyle(.secondary).help(row.safety.whatItIs)
+                } else {
+                    Toggle("", isOn: binding(for: row.id)).toggleStyle(.checkbox).labelsHidden()
+                }
             }
             .width(22)
-            TableColumn("Name", value: \FileRecord.name) { (record: FileRecord) in
-                FileNameCell(record: record)
+            TableColumn("Name", value: \RatedFile.name) { (row: RatedFile) in
+                FileNameCell(record: row.record, subtitle: row.safety.whatItIs)
             }
-            .width(min: 160, ideal: 240)
-            TableColumn("Size", value: \FileRecord.size) { (record: FileRecord) in
-                Text(record.size.formattedBytes).monospacedDigit()
+            .width(min: 180, ideal: 260)
+            TableColumn("Safety", value: \RatedFile.safetyRank) { (row: RatedFile) in
+                SafetyBadge(level: row.safety.level).help(row.safety.ifDeleted)
             }
-            .width(min: 70, ideal: 85)
-            TableColumn("Last Modified", value: \FileRecord.modified) { (record: FileRecord) in
-                Text(record.modified.formatted(date: .abbreviated, time: .omitted))
+            .width(min: 84, ideal: 94)
+            TableColumn("Size", value: \RatedFile.size) { (row: RatedFile) in
+                SizeWithBar(size: row.size, maxSize: maxSize)
+            }
+            .width(min: 80, ideal: 96)
+            TableColumn("Last Modified", value: \RatedFile.modified) { (row: RatedFile) in
+                Text(row.modified.formatted(date: .abbreviated, time: .omitted))
             }
             .width(min: 90, ideal: 105)
-            TableColumn("Last Opened", value: \FileRecord.lastOpened) { (record: FileRecord) in
-                LastOpenedCell(record: record)
+            TableColumn("Last Opened", value: \RatedFile.lastOpened) { (row: RatedFile) in
+                LastOpenedCell(record: row.record)
             }
             .width(min: 90, ideal: 105)
-            TableColumn("Kind", value: \FileRecord.kind) { (record: FileRecord) in
-                Text(record.kind).lineLimit(1).foregroundStyle(.secondary)
+            TableColumn("Kind", value: \RatedFile.kind) { (row: RatedFile) in
+                Text(row.kind).lineLimit(1).foregroundStyle(.secondary)
             }
-            .width(min: 70, ideal: 120)
-            TableColumn("Path", value: \FileRecord.path) { (record: FileRecord) in
-                PathCell(path: record.path)
+            .width(min: 70, ideal: 110)
+            TableColumn("Path", value: \RatedFile.path) { (row: RatedFile) in
+                PathCell(path: row.path)
             }
-            .width(min: 160, ideal: 360)
+            .width(min: 140, ideal: 300)
         }
-        .contextMenu(forSelectionType: FileRecord.ID.self) { ids in
+        .contextMenu(forSelectionType: RatedFile.ID.self) { ids in
             Button("Reveal in Finder") { AppState.revealInFinder(Array(ids)) }
             Button("Quick Look") { previewURL = ids.first.map { URL(fileURLWithPath: $0) } }
             Divider()
-            Button("Check") { checked.formUnion(ids) }
+            Button("Check") { checked.formUnion(ids.filter { id in rated.first { $0.id == id }?.safety.level != .protected }) }
             Button("Uncheck") { checked.subtract(ids) }
         } primaryAction: { ids in
             // Double-click reveals the item in Finder.
@@ -121,27 +193,40 @@ struct FileTableView<Header: View>: View {
             togglePreview(rows: rows)
             return .handled
         }
-        .quickLookPreview($previewURL, in: rows.map(\.url))
+        .quickLookPreview($previewURL, in: rows.map(\.record.url))
     }
 
-    /// Footer with checked count/size and actions.
-    private func footer(_ rows: [FileRecord]) -> some View {
-        let checkedRecords = records.filter { checked.contains($0.id) }
-        let removeAction: (() -> Void)? = onRemove.map { remove in { remove(checkedRecords) } }
+    /// Details for the single selected row, or a legend explaining the ratings.
+    @ViewBuilder
+    private var inspector: some View {
+        if selection.count == 1, let id = selection.first, let row = rated.first(where: { $0.id == id }) {
+            ItemInspector(path: row.path, size: row.size, assessment: row.safety, modified: row.modified,
+                          lastOpened: row.lastOpened, kind: row.kind,
+                          onQuickLook: { previewURL = row.record.url })
+        } else {
+            EmptyInspector()
+        }
+    }
+
+    /// Footer with checked count/size, a breakdown of anything that isn't rated "safe", and actions.
+    private func footer(_ rows: [RatedFile]) -> some View {
+        let checkedRows = rated.filter { checked.contains($0.id) }
+        let needsReview = checkedRows.filter { $0.safety.level != .safe }.count
         return SelectionFooter(
-            checkedCount: checkedRecords.count,
-            checkedSize: checkedRecords.reduce(0) { $0 + $1.size },
+            checkedCount: checkedRows.count,
+            checkedSize: checkedRows.reduce(0) { $0 + $1.size },
             totalCount: rows.count,
-            onCheckAll: { checked.formUnion(rows.map(\.id)) },
+            note: needsReview > 0 ? "\(needsReview) not rated Safe" : nil,
+            onCheckAll: { checked.formUnion(rows.filter { $0.safety.level != .protected }.map(\.id)) },
             onUncheckAll: { checked.removeAll() },
-            onReveal: { AppState.revealInFinder(revealTargets(checkedRecords)) },
+            onReveal: { AppState.revealInFinder(selection.isEmpty ? checkedRows.map(\.path) : Array(selection)) },
             onQuickLook: { togglePreview(rows: rows) },
-            onRemove: removeAction
+            onRemove: state.deletionEnabled ? { state.requestDeletion(paths: checkedRows.map(\.path)) } : nil
         )
     }
 
     /// Checkbox binding for one row.
-    private func binding(for id: FileRecord.ID) -> Binding<Bool> {
+    private func binding(for id: RatedFile.ID) -> Binding<Bool> {
         Binding(
             get: { checked.contains(id) },
             set: { isOn in
@@ -149,13 +234,8 @@ struct FileTableView<Header: View>: View {
             })
     }
 
-    /// Reveal acts on highlighted rows, falling back to checked rows.
-    private func revealTargets(_ checkedRecords: [FileRecord]) -> [String] {
-        selection.isEmpty ? checkedRecords.map(\.path) : Array(selection)
-    }
-
     /// Space bar: opens Quick Look for the highlighted (or first checked) row, or closes it.
-    private func togglePreview(rows: [FileRecord]) {
+    private func togglePreview(rows: [RatedFile]) {
         if previewURL != nil {
             previewURL = nil
         } else if let id = selection.first ?? rows.first(where: { checked.contains($0.id) })?.id {
@@ -164,17 +244,24 @@ struct FileTableView<Header: View>: View {
     }
 }
 
-/// Icon + file name cell; the tooltip shows the full path.
+/// Icon + file name with a short "what it is" line underneath; the tooltip shows the full path.
 struct FileNameCell: View {
     let record: FileRecord
+    var subtitle: String?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(nsImage: IconCache.icon(forPath: record.path, isPackage: record.isPackage))
                 .resizable()
-                .frame(width: 16, height: 16)
-            Text(record.name).lineLimit(1)
+                .frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(record.name).lineLimit(1)
+                if let subtitle {
+                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
         }
+        .padding(.vertical, 2)
         .help(record.path)
     }
 }
@@ -207,6 +294,8 @@ struct SelectionFooter: View {
     let checkedCount: Int
     let checkedSize: Int64
     let totalCount: Int
+    /// Optional warning shown next to the checked total, e.g. "2 not rated Safe".
+    var note: String?
     var onCheckAll: () -> Void
     var onUncheckAll: () -> Void
     var onReveal: () -> Void
@@ -230,6 +319,11 @@ struct SelectionFooter: View {
                 Text("\(checkedCount) checked · \(checkedSize.formattedBytes)")
                     .font(.callout.weight(.semibold).monospacedDigit())
                     .foregroundStyle(Theme.accent)
+                if let note {
+                    Label(note, systemImage: "eye.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             } else {
                 Text("\(totalCount.formatted()) items").font(.callout).foregroundStyle(.secondary)
             }
