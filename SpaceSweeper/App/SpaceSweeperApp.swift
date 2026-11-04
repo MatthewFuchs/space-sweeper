@@ -36,6 +36,7 @@ struct SpaceSweeperApp: App {
 
         Settings {
             SettingsView(updates: updates)
+                .environment(state)
         }
     }
 }
@@ -43,6 +44,7 @@ struct SpaceSweeperApp: App {
 /// Shows the Full Disk Access explainer until access is granted (or the user chooses to continue without it).
 struct RootView: View {
     @Environment(AppState.self) private var state
+    @AppStorage(AppSettings.Key.appearance) private var appearance = AppearanceMode.system.rawValue
 
     var body: some View {
         Group {
@@ -52,6 +54,7 @@ struct RootView: View {
                 ContentView()
             }
         }
+        .preferredColorScheme(AppearanceMode(rawValue: appearance)?.colorScheme)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             state.refreshFullDiskAccess()
             state.refreshDisk()

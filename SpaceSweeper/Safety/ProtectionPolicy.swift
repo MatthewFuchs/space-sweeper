@@ -67,7 +67,7 @@ struct ProtectionPolicy: Sendable {
             warnings.append("Inside your \(folder) folder")
         }
         if let modified, now.timeIntervalSince(modified) < recentInterval {
-            warnings.append("Modified in the last 7 days")
+            warnings.append("Modified in the last \(recentDays) days")
         }
         return warnings.isEmpty ? .allowed : .warning(warnings)
     }
@@ -106,6 +106,9 @@ struct ProtectionPolicy: Sendable {
         }
         return nil
     }
+
+    /// The "recently modified" window in whole days, for messages.
+    var recentDays: Int { max(1, Int((recentInterval / 86_400).rounded())) }
 
     /// Absolute path with "." / ".." removed and parent symlinks resolved (/var → /private/var).
     /// The last component is kept as-is: removing a symlink removes the link, not its target.

@@ -270,3 +270,85 @@ private final class FreeSpaceReadings: @unchecked Sendable {
         return values.isEmpty ? nil : values.removeFirst()
     }
 }
+
+/// Settings: defaults, validation, and their effect on scanning and safety. Uses a throwaway defaults suite.
+final class SettingsTests: XCTestCase {
+    private var suiteName: String!
+    private var settings: AppSettings!
+
+    override func setUp() {
+        suiteName = "SpaceSweeperTests-\(UUID().uuidString)"
+        settings = AppSettings(defaults: UserDefaults(suiteName: suiteName)!)
+    }
+
+    override func tearDown() {
+        UserDefaults().removePersistentDomain(forName: suiteName)
+    }
+
+    func testDefaults() {
+        XCTAssertEqual(settings.appearance, .system)
+        XCTAssertFalse(settings.scanOnLaunch)
+        XCTAssertEqual(settings.excludedPaths, [])
+        XCTAssertEqual(settings.recentChangeDays, 7)
+        XCTAssertTrue(settings.showPermanentDelete)
+    }
+
+    func testInvalidValuesFallBackToDefaults() {
+        settings.defaults.set("purple", forKey: AppSettings.Key.appearance)
+        settings.defaults.set(5, forKey: AppSettings.Key.recentChangeDays)
+        XCTAssertEqual(settings.appearance, .system)
+        XCTAssertEqual(settings.recentChangeDays, 7)
+        settings.recentChangeDays = 30
+        XCTAssertEqual(settings.recentChangeDays, 30)
+    }
+
+    func testExclusionsAreDeduplicated() {
+        settings.addExclusion("/tmp/a")
+        settings.addExclusion("/tmp/a/b")
+        settings.addExclusion("/tmp/a")
+        XCTAssertEqual(settings.excludedPaths, [PathUtil.normalize("/tmp/a")])
+        settings.removeExclusion(PathUtil.normalize("/tmp/a"))
+        XCTAssertEqual(settings.excludedPaths, [])
+    }
+
+    func testRecentChangeWindowChangesRatingsAndWording() {
+        settings.recentChangeDays = 30
+        var policy = settings.protectionPolicy(home: "/Users/tester")
+        policy.now = Date(timeIntervalSince1970: 1_800_000_000)
+        let twentyDaysAgo = policy.now.addingTimeInterval(-20 * 86_400)
+        XCTAssertEqual(policy.verdict(for: "/Users/tester/Movies/a.mov", modified: twentyDaysAgo).warnings,
+                       ["Modified in the last 30 days"])
+        let assessment = SafetyAdvisor(policy: policy).assess(path: "/Users/tester/Library/Caches/x/y", modified: twentyDaysAgo)
+        XCTAssertEqual(assessment.level, .review, "recent under the 30-day setting, so not Safe")
+
+        settings.recentChangeDays = 7
+        var weekPolicy = settings.protectionPolicy(home: "/Users/tester")
+        weekPolicy.now = policy.now
+        XCTAssertEqual(SafetyAdvisor(policy: weekPolicy).assess(path: "/Users/tester/Library/Caches/x/y", modified: twentyDaysAgo).level,
+                       .safe)
+    }
+
+    func testExcludedFoldersAreSkippedByTheScanner() async throws {
+        let fixture = try TestFixture()
+        try fixture.file("keep/a.bin", bytes: 5_000)
+        try fixture.file("private-exports/b.bin", bytes: 900_000)
+        var options = ScanOptions(roots: [fixture.path], homePath: fixture.path)
+        options.folderKeepMinimum = 0
+        options.excludedPaths = [fixture.path("private-exports")]
+        let result = try await FileScanner.scan(options: options, progress: ScanProgress())
+        XCTAssertNil(result.tree.index(ofPath: fixture.path("private-exports")))
+        XCTAssertEqual(result.totalSize, fixture.allocated("keep/a.bin"))
+        XCTAssertEqual(result.skipped.first { $0.path == fixture.path("private-exports") }?.reason, "Excluded in Settings")
+    }
+
+    func testPrivacyMarkdownMatchesInAppPolicy() throws {
+        // PRIVACY.md sits at the repository root, two levels above this test file.
+        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let markdown = try String(contentsOf: repo.appendingPathComponent("PRIVACY.md"), encoding: .utf8)
+        XCTAssertTrue(markdown.contains("Effective \(HelpContent.privacyPolicyDate)"))
+        for section in HelpContent.privacyPolicy {
+            XCTAssertTrue(markdown.contains("## \(section.heading)"), section.heading)
+            XCTAssertTrue(markdown.contains(section.body), "PRIVACY.md is out of date for \(section.heading)")
+        }
+    }
+}
