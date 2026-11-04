@@ -1,130 +1,110 @@
 # SpaceSweeper
 
-A native macOS app (SwiftUI, macOS 14+, Apple Silicon) that finds what's using your disk, tells you whether each item is safe to delete, and removes it safely: to the Trash by default, with a review step every time.
+[![CI](https://github.com/MatthewFuchs/space-sweeper/actions/workflows/ci.yml/badge.svg)](https://github.com/MatthewFuchs/space-sweeper/actions/workflows/ci.yml)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-4169E1)
+![Swift](https://img.shields.io/badge/Swift-5.9%2B-4169E1)
+
+**A native macOS app that finds what's using your disk, tells you plainly whether each item is safe to delete, and removes it safely.**
+
+SpaceSweeper scans your Mac, rates every large file, folder and cache **Safe**, **Review**, **Careful** or **Protected**, explains what happens if you delete it, and moves what you choose to the Trash, always after a review step. It works offline and never reads the contents of your files.
+
+## Features
+
+- **Overview:** free space at a glance, the biggest safe wins, Trash size with Empty Trash, and *System data, explained* (purgeable space, Time Machine local snapshots, apps).
+- **Large Files and Old Files:** every big or long-untouched file with a safety rating, a plain-English explanation, filters by rating, and an inspector with details.
+- **Folders:** a space map (treemap) to see where space goes at a glance, or a drill-down list.
+- **Developer Junk:** Xcode DerivedData, simulators and old DeviceSupport, `node_modules`, `build/`, `target/`, virtualenvs, package-manager caches (npm, Gradle, Maven, NuGet, Homebrew…), app caches, Android emulators, installers in Downloads. Each one says what it is and how it comes back.
+- **Applications:** sizes and last-used dates; **uninstall** removes the app *and* its leftovers (caches, preferences, containers, startup helpers).
+- **Security Check:** points out startup items, apps and downloads that look unusual (broken signatures, disguised file names, hidden programs that start automatically) using macOS's own signature checks. It's not an antivirus, and nothing is uploaded.
+- **Safety first:** Trash by default, a review sheet with Cancel as the default button, a built-in protection list (macOS, Keychains, iCloud Drive, Mail, Photos, `~/.ssh`…), warnings for recently changed files, and an activity log you can export as CSV.
+- **Native and accessible:** SwiftUI, light and dark mode, VoiceOver labels, Reduce Motion, keyboard shortcuts.
+
+## Requirements
+
+- A Mac with Apple Silicon running macOS 14 Sonoma or later
+- Xcode 16 or later to build (developed with Xcode 26)
 
 ## Build and run
 
-Requirements: Xcode 16 or newer (built and tested with Xcode 26.3), macOS 14+, an Apple Silicon Mac. One dependency, [Sparkle](https://github.com/sparkle-project/Sparkle) (automatic updates), fetched by Swift Package Manager on first build.
+```sh
+git clone https://github.com/MatthewFuchs/space-sweeper.git
+cd space-sweeper
+open SpaceSweeper.xcodeproj      # then press ⌘R
+```
 
-1. Open `SpaceSweeper.xcodeproj`.
-2. Choose the **SpaceSweeper** scheme and **My Mac**, then press **⌘R**.
-
-From the terminal:
+Or from the terminal:
 
 ```sh
-scripts/ci.sh            # build + all unit tests (same as CI)
+scripts/ci.sh            # build + run all tests (the same script CI uses)
 scripts/ci.sh build      # build only
 open build/DerivedData/Build/Products/Debug/SpaceSweeper.app
 ```
 
-The project signs with "Sign to Run Locally" (ad-hoc), so it builds without an Apple developer account.
+The only dependency, [Sparkle](https://github.com/sparkle-project/Sparkle) (automatic updates), is fetched by Swift Package Manager on the first build. Debug builds are ad-hoc signed, so no Apple developer account is needed.
 
-## Granting Full Disk Access
+## Full Disk Access
 
-SpaceSweeper is not sandboxed: it has to read your whole home folder. macOS still hides some folders (Mail, Safari, other apps' containers) until you grant **Full Disk Access**:
+SpaceSweeper isn't sandboxed because it needs to measure your whole home folder. macOS still hides some folders (Mail, Safari, other apps' data, the Trash) until you grant **Full Disk Access**:
 
-1. Launch SpaceSweeper. If access is missing, it shows an explanation screen.
-2. Click **Open System Settings** (Privacy & Security › Full Disk Access).
-3. Turn on **SpaceSweeper**. If it isn't listed, click **+** and choose the app.
-4. Return to SpaceSweeper and choose **Quit & Reopen** if macOS asks, then **Rescan**.
+1. Launch SpaceSweeper. If access is missing it explains why and offers **Open System Settings**.
+2. In *Privacy & Security › Full Disk Access*, turn on **SpaceSweeper** (use **+** if it isn't listed).
+3. Return to the app (choose **Quit & Reopen** if macOS asks) and **Rescan**.
 
-Ad-hoc signed builds get a new signature on every rebuild, so macOS may forget the permission. If the access screen comes back after a rebuild, remove SpaceSweeper from the list with **–** and add it again, or set a Development Team under *Signing & Capabilities*.
+Without it the app still works; hidden folders are listed under **Couldn't Scan**. Locally built apps get a new signature on each rebuild, so macOS may forget the permission. Remove and re-add the app if the access screen comes back.
 
-Without Full Disk Access the app still works; protected folders appear under **Couldn't Scan**.
-
-## What the app shows
-
-| Section | What it is |
-|---|---|
-| **Overview** | Disk total, used and free; the biggest *Safe* items; Trash size with Empty Trash; "System data, explained" (purgeable space, Time Machine local snapshots, apps); a usage breakdown; an estimate of reclaimable space. |
-| **Large Files** | Every file above a size threshold (slider, default 500 MB). |
-| **Old Files** | Files not opened or modified in 6/12/24 months, above a minimum size (default 50 MB). |
-| **Folders** | A space map (treemap: bigger tiles use more space, double-click to open) or a drill-down list, largest first. |
-| **Developer Junk** | Regenerable developer data: Xcode DerivedData, simulators, archives and DeviceSupport; `node_modules`, `.next`, `dist`, `ios/Pods`, virtualenvs, `target/` and `build/` (only next to a project file); package-manager caches (npm, NuGet, Gradle, Maven, Expo, Homebrew, `~/.cache`); app caches; Docker's disk image (view only); Android images and emulators; VM installer images; installers in Downloads. |
-| **Applications** | Apps in `/Applications` and `~/Applications` with version, size and last-used date. Uninstall removes the app plus its leftovers. |
-| **Couldn't Scan** | Folders skipped because macOS protects them, they couldn't be read, or they're cloud placeholders. |
-| **Activity Log** | Everything removed, exportable as CSV. |
-| **Help** | In-app guide to ratings and kinds of data. |
-
-### Safety ratings
-
-Every file, folder and junk item is rated:
+## Safety ratings
 
 | Rating | Meaning | Examples |
 |---|---|---|
 | **Safe** | Recreated automatically | Caches, build output, installers you've used |
 | **Review** | Your data, check first | Documents, photos, videos, downloads |
-| **Careful** | Loses app data or settings | Application Support, containers, VMs, simulators |
-| **Protected** | Never deleted | `/System`, `/Library`, `/usr`, `/private`, Keychains, iCloud Drive, `~/.ssh`, Mail, Photos library, SpaceSweeper itself |
+| **Careful** | Loses app data or settings | Application Support, containers, virtual machines, simulators |
+| **Protected** | Never deleted | macOS, `/Library`, Keychains, iCloud Drive, `~/.ssh`, Mail, the Photos library |
 
-Anything modified in the last 7 days is never rated Safe. Items in Documents or Desktop show a warning.
-
-### Sizes
-
-Sizes are **allocated** space on disk, not logical file length, so sparse files such as Docker's `Docker.raw` show what they really use. Hard links are counted once; symlinks are never followed. Freed space only appears after the Trash is emptied, and macOS may keep Time Machine local snapshots or purgeable space for a while.
-
-## Deleting safely
-
-- **Move to Trash** is the default (`FileManager.trashItem`), so everything can be put back.
-- **Delete Permanently** is a secondary button behind a second confirmation.
-- A review sheet always lists every item, its size, rating and consequence, with **Cancel** as the default button.
-- Protected items appear as locked rows and are re-checked immediately before each removal.
-- If an app that owns the files is running (Xcode, VS Code, Cursor, Docker…), the sheet warns and offers **Quit**.
-- After removal, the app shows how much was removed and how free space changed, and records each item in the activity log.
-
-### Uninstalling apps
-
-Uninstall moves the `.app` to the Trash and lists leftovers found in `~/Library` (Application Support, Caches, Preferences, Containers, Group Containers, Saved Application State, HTTPStorages, WebKit, LaunchAgents, Logs, Cookies). Matches by bundle identifier are ticked; matches by app name only are shown unticked. Apple system apps and SpaceSweeper itself can't be uninstalled, and a running app must be quit first. Apps owned by root or another user trigger the standard macOS administrator prompt.
-
-## Settings
-
-*SpaceSweeper › Settings…* (⌘,): scan on open and default sizes; appearance (System/Light/Dark); scan locations and **folders to always skip**; how recent a change counts as "in use" and whether to offer Delete Permanently; privacy (policy, delete the saved scan, clear the activity log); updates.
-
-## Accessibility
-
-Every checkbox, badge and chart slice has a VoiceOver label; ratings use text and icons, not only colour; decorative graphics are hidden from VoiceOver; animations respect *Reduce Motion*; the space map uses colours that keep white labels readable (WCAG AA for large text). Keyboard: ⌘R rescan, ⌘. cancel, ⌘⌫ Move to Trash…, ⌥⌘A deselect all, Space Quick Look, ⌘? Help.
+Anything changed recently (7 days by default) is never rated Safe. Sizes are space actually used on disk, so sparse files like Docker's disk image show their real footprint. The in-app **Help** section explains every kind of data in more detail.
 
 ## Privacy
 
-See [PRIVACY.md](PRIVACY.md), which is also shown in *Settings › Privacy*. In short: no data collection, no network use except optional update checks, and everything stays on your Mac.
+SpaceSweeper collects nothing: no accounts, analytics, tracking or ads. It reads file names, sizes and dates (plus code signatures for Security Check), keeps its scan results on your Mac, and makes no network connections except optional update checks. See [PRIVACY.md](PRIVACY.md).
+
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|---|---|
+| ⌘R / ⌘. | Rescan / cancel scan |
+| Space | Quick Look the selected item |
+| ⌘⌫ | Move checked items to Trash… |
+| ⌥⌘A | Deselect all |
+| ⌘, | Settings |
+| ⌘? | Help |
 
 ## Project layout
 
 ```
 SpaceSweeper/
-  App/        App entry point, AppState (central @Observable model)
-  Models/     Scan models, folder tree, overview calculations, help content
-  Scanning/   getattrlistbulk lister, parallel walker, scanner, cache
-  DevJunk/    Junk detection rules and catalog
-  Safety/     Protection policy, safety ratings, deletion service, activity log
-  Apps/       App inventory, leftover matching, admin-rights fallback
-  System/     Disk info, Full Disk Access check
+  App/        App entry point and AppState (central @Observable model)
+  Models/     Scan results, folder tree, treemap layout, settings, help and privacy text
+  Scanning/   getattrlistbulk-based parallel scanner and scan cache
+  DevJunk/    Developer junk detection rules and catalog
+  Safety/     Protection list, safety ratings, deletion, activity log, Trash/system space, Security Check
+  Apps/       App inventory, uninstall leftovers, administrator prompt fallback
+  Updates/    Sparkle updater and Settings window
   Views/      SwiftUI views
-SpaceSweeperTests/   Unit tests (temporary-folder fixtures only)
-scripts/ci.sh        Single CI entry point
-.github/workflows/   GitHub Actions: build + test on every push/PR, Release artifact on main
+SpaceSweeperTests/   Unit tests (temporary-folder fixtures only; they never touch real files)
+scripts/ci.sh        Single build/test entry point
+docs/                Maintainer docs
 ```
 
-Scanning uses `getattrlistbulk(2)`, which was about 20–25% faster than `FileManager`'s enumerator on a real home folder. It also returns inode, link count and flags in the same call. Subtrees are scanned in parallel with Swift concurrency, and progress is polled ten times a second so the UI never blocks. The last scan is cached in `~/Library/Application Support/SpaceSweeper/` so the app opens instantly.
+Scanning uses `getattrlistbulk(2)` (about 20–25% faster than `FileManager`'s enumerator on a real home folder) and walks subtrees in parallel with Swift concurrency; a full home folder of about a million items scans in roughly 10–15 seconds on Apple Silicon.
 
-## Tests and CI
+## Contributing
 
-`scripts/ci.sh` builds and runs all tests; GitHub Actions runs the same script on every push and pull request. Tests cover size aggregation, the protection list, safety ratings, developer-junk detection, leftover matching, deletion (using a fixture "Trash", never the real one), CSV export and the Help content. Every test works in a temporary folder and never touches real user files.
+Issues and pull requests are welcome.
 
-## Distribution notes (for selling the app)
+- Run `scripts/ci.sh` before opening a pull request. CI runs the same script on every push and pull request.
+- Add tests for new rules or behaviour. Tests must use the `TestFixture` temporary folders, never real user files.
+- Anything that deletes files must go through `DeletionService`, which re-checks the protection list, and must show the review sheet first.
 
-- **Not Mac App Store:** App Store apps must be sandboxed, and SpaceSweeper needs full-disk reads, so distribute directly. Sign with a **Developer ID Application** certificate (Apple Developer Program, $99/year), enable Hardened Runtime (already on), and **notarize** with `xcrun notarytool` so Gatekeeper opens it without warnings.
-- **Licensing and payments:** Paddle, Lemon Squeezy or FastSpring act as merchant of record (they handle sales tax and VAT) and provide license keys. Setapp is an alternative subscription channel. A common model is a free scan with paid cleanup.
-- **Updates:** built in with [Sparkle 2](https://sparkle-project.org) (see below).
-- **Trust:** the app is offline and reads metadata only. Publish a short privacy policy saying so; the Help screen already states it.
-- **Bundle ID:** `com.mattfuchs.SpaceSweeper`. Change it before the first public release if you plan to sell under a company name, because it can't change afterwards without losing users' settings.
+## Releasing
 
-## Releasing updates (Sparkle)
-
-Updates are **off** until the build has a feed URL and a signing key; until then *Check for Updates…* is disabled and Settings says updates aren't set up. To turn them on:
-
-1. **Create a signing key (once).** Run Sparkle's `generate_keys` tool. After the first build it is in `build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/`. It stores the private key in your login Keychain and prints the public key. Back up the private key (`generate_keys -x private-key.txt`) somewhere safe; losing it means existing users can't receive updates.
-2. **Configure the build.** In the SpaceSweeper target's build settings, set `SPARKLE_PUBLIC_KEY` to the printed public key and `SPARKLE_FEED_URL` to the HTTPS address where you'll host `appcast.xml` (for example GitHub Pages, or your website).
-3. **For each release:** bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, archive, sign with Developer ID, notarize, and zip or DMG the app. Then run `generate_appcast <folder-with-releases>`, which signs the archives and writes `appcast.xml`. Upload both to the feed location.
-
-Users get an update prompt on their next automatic check (once a day by default), or via *SpaceSweeper › Check for Updates…*.
+Signing, notarization and automatic updates are covered in [docs/RELEASING.md](docs/RELEASING.md).

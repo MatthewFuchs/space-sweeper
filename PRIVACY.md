@@ -8,7 +8,7 @@ SpaceSweeper does not collect, sell or share personal data. It has no accounts, 
 
 ## What SpaceSweeper reads
 
-To show what uses your disk, it reads file and folder names, sizes and dates, and Spotlight's "last used" date. To identify apps it reads each app's Info.plist (name, version, bundle identifier) and the background-helper (LaunchAgent) files in your Library. It does not open or read the contents of your documents, photos or other files.
+To show what uses your disk, it reads file and folder names, sizes and dates, and Spotlight's "last used" date. To identify apps it reads each app's Info.plist (name, version, bundle identifier) and the background-helper (LaunchAgent) files in your Library. Security Check reads code signatures (using macOS's own checks), the startup-item files in Library, and the download source macOS records for files. It does not open or read the contents of your documents, photos or other files.
 
 ## What SpaceSweeper stores
 

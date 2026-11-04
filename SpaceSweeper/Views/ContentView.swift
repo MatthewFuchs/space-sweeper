@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Sidebar sections. The raw value is persisted in scene storage.
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case overview, largeFiles, oldFiles, folders, devJunk, applications, couldntScan, activity, help
+    case overview, largeFiles, oldFiles, folders, devJunk, applications, security, couldntScan, activity, help
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .devJunk: return "Developer Junk"
         case .applications: return "Applications"
         case .couldntScan: return "Couldn't Scan"
+        case .security: return "Security Check"
         case .activity: return "Activity Log"
         case .help: return "Help"
         }
@@ -29,16 +30,17 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .devJunk: return "hammer"
         case .applications: return "square.grid.2x2"
         case .couldntScan: return "exclamationmark.triangle"
+        case .security: return "checkmark.shield"
         case .activity: return "list.bullet.rectangle"
         case .help: return "questionmark.circle"
         }
     }
 
     /// Main sections and secondary sections, shown as two sidebar groups.
-    static let library: [SidebarItem] = [.overview, .largeFiles, .oldFiles, .folders, .devJunk, .applications]
+    static let library: [SidebarItem] = [.overview, .largeFiles, .oldFiles, .folders, .devJunk, .applications, .security]
     static let more: [SidebarItem] = [.couldntScan, .activity, .help]
     /// Sections that work without scan results.
-    var needsScan: Bool { ![.applications, .activity, .help].contains(self) }
+    var needsScan: Bool { ![.applications, .security, .activity, .help].contains(self) }
 }
 
 /// Main window: sidebar navigation, toolbar and the selected section.
@@ -100,6 +102,9 @@ struct ContentView: View {
         case .devJunk:
             let total = state.junkItems.filter(\.isDeletable).reduce(0) { $0 + $1.size }
             return total > 0 ? Text(total.formattedBytes) : nil
+        case .security:
+            let count = state.securityFindings.filter { $0.level == .suspicious && !state.securityIgnored.contains($0.path) }.count
+            return count > 0 ? Text("\(count)") : nil
         case .largeFiles:
             let total = (state.result?.files ?? []).filter { $0.size >= 500 * MB }.reduce(0) { $0 + $1.size }
             return total > 0 ? Text(total.formattedBytes) : nil
@@ -128,6 +133,7 @@ struct ContentView: View {
             case .folders: FoldersView()
             case .devJunk: DevJunkView()
             case .applications: ApplicationsView()
+            case .security: SecurityView()
             case .couldntScan: CouldntScanView()
             case .activity: ActivityLogView()
             case .help: HelpView()
