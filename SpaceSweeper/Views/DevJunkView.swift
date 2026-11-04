@@ -18,6 +18,10 @@ struct DevJunkView: View {
         let items = visibleItems
         let checkedItems = state.junkItems.filter { checked.contains($0.id) }
         VStack(spacing: 0) {
+            SectionHeader(symbol: "hammer", title: "Developer Junk",
+                          subtitle: "Build outputs, caches and downloads that tools can recreate. Each item says what it is and what happens if you delete it.")
+                .padding(18)
+            Divider()
             if state.isComputingJunk && state.junkItems.isEmpty {
                 ProgressView("Measuring developer folders…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if items.isEmpty {
@@ -53,7 +57,8 @@ struct DevJunkView: View {
                 checkedCount: checkedItems.count,
                 checkedSize: checkedItems.reduce(0) { $0 + $1.size },
                 totalCount: items.count,
-                onCheckAll: { checked.formUnion(items.filter(\.isDeletable).map(\.id)) },
+                note: checkedItems.contains { $0.safety != .safe } ? "\(checkedItems.filter { $0.safety != .safe }.count) not rated Safe" : nil,
+                onCheckAll: { checked.formUnion(items.filter { $0.isDeletable && $0.safety == .safe }.map(\.id)) },
                 onUncheckAll: { checked.removeAll() },
                 onReveal: { AppState.revealInFinder(selection.map { [$0] } ?? checkedItems.map(\.path)) },
                 onQuickLook: { previewURL = selection.map { URL(fileURLWithPath: $0) } },
@@ -103,14 +108,17 @@ struct DevJunkRow: View {
             }
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title).fontWeight(.medium)
-                Text(item.explanation).font(.callout).foregroundStyle(.secondary)
+                Text("If you delete it: " + item.explanation).font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(PathUtil.abbreviate(item.path)).font(.caption).foregroundStyle(.tertiary)
                     .lineLimit(1).truncationMode(.middle)
             }
             Spacer(minLength: 12)
-            Text(item.size.formattedBytes)
-                .font(.body.monospacedDigit().weight(.semibold))
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(item.size.formattedBytes)
+                    .font(.body.monospacedDigit().weight(.semibold))
+                SafetyBadge(level: item.isDeletable ? item.safety : .protected, compact: true)
+            }
         }
         .padding(.vertical, 4)
     }

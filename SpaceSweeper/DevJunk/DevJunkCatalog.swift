@@ -33,6 +33,8 @@ struct DevJunkItem: Identifiable, Hashable, Sendable {
     var size: Int64
     /// False for items that must be cleaned by their own tool (Docker's disk image).
     var isDeletable = true
+    /// How safe deleting it is. Most junk regenerates (safe); simulators, archives, emulators and venvs need care.
+    var safety: SafetyLevel = .safe
     /// Apps that use this location and should be quit before it is deleted.
     var ownerBundleIDs: [String] = []
 
@@ -87,12 +89,13 @@ struct DevJunkCatalog {
         ((try? fileManager.contentsOfDirectory(atPath: path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
     }
 
+    /// A fixed home-relative location, or nil when it doesn't exist.
     private func item(_ relative: String, _ title: String, _ explanation: String, _ group: JunkGroup,
-                      owners: [String] = [], deletable: Bool = true) -> DevJunkItem? {
+                      owners: [String] = [], deletable: Bool = true, safety: SafetyLevel = .safe) -> DevJunkItem? {
         let path = home(relative)
         guard fileManager.fileExists(atPath: path) else { return nil }
-        return DevJunkItem(path: path, title: title, explanation: explanation, group: group,
-                           size: size(of: path), isDeletable: deletable, ownerBundleIDs: owners)
+        return DevJunkItem(path: path, title: title, explanation: explanation, group: group, size: size(of: path),
+                           isDeletable: deletable, safety: deletable ? safety : .protected, ownerBundleIDs: owners)
     }
 
     // MARK: Groups
@@ -105,13 +108,13 @@ struct DevJunkCatalog {
                  .xcode, owners: xcode),
             item("Library/Developer/CoreSimulator/Devices", "Simulator devices",
                  "All simulators with their installed apps and data. Xcode recreates default simulators, but data inside them is lost. `xcrun simctl delete unavailable` removes only obsolete ones.",
-                 .xcode, owners: xcode + [Self.simulatorID]),
+                 .xcode, owners: xcode + [Self.simulatorID], safety: .caution),
             item("Library/Developer/CoreSimulator/Caches", "Simulator caches",
                  "Shared caches for simulator runtimes. Rebuilt automatically when a simulator boots.",
                  .xcode, owners: xcode + [Self.simulatorID]),
             item("Library/Developer/Xcode/Archives", "Xcode Archives",
                  "Builds made with Product › Archive. They contain the dSYMs needed to symbolicate crash reports, so keep the ones for released versions.",
-                 .xcode, owners: xcode),
+                 .xcode, owners: xcode, safety: .caution),
         ].compactMap { $0 }
 
         for platform in ["iOS", "watchOS", "tvOS", "visionOS"] {
@@ -135,7 +138,8 @@ struct DevJunkCatalog {
             }
             let project = ((hit.path as NSString).deletingLastPathComponent as NSString).lastPathComponent
             return DevJunkItem(path: hit.path, title: "\(hit.kind.title) — \(project)",
-                               explanation: hit.kind.explanation, group: .projects, size: hit.size)
+                               explanation: hit.kind.explanation, group: .projects, size: hit.size,
+                               safety: hit.kind == .pythonVenv ? .review : .safe)
         }
     }
 
@@ -143,7 +147,7 @@ struct DevJunkCatalog {
         [
             item(".cache", "~/.cache",
                  "Shared cache used by many command-line tools (pip, Hugging Face, pre-commit…). Tools re-download what they need, which can take a while for large models.",
-                 .packageCaches),
+                 .packageCaches, safety: .review),
             item(".npm/_cacache", "npm cache",
                  "npm's download cache. npm re-downloads packages when they are next installed.", .packageCaches),
             item(".nuget/packages", "NuGet packages",
@@ -208,7 +212,7 @@ struct DevJunkCatalog {
             items.append(DevJunkItem(
                 path: path, title: "Android emulator \((avd as NSString).deletingPathExtension)",
                 explanation: "An Android Virtual Device including its disk and snapshots. Deleting removes the emulator and everything installed in it.",
-                group: .androidAndVMs, size: size(of: path), ownerBundleIDs: [Self.androidStudioID]))
+                group: .androidAndVMs, size: size(of: path), safety: .caution, ownerBundleIDs: [Self.androidStudioID]))
         }
         let downloads = home("Downloads")
         for file in result.files where Self.vmImageExtensions.contains(file.url.pathExtension.lowercased())

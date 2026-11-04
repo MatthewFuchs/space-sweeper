@@ -42,6 +42,10 @@ struct FoldersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            SectionHeader(symbol: "folder", title: "Folders",
+                          subtitle: "Where your space goes, largest first. Expand a folder to drill down; the badge shows how safe each one is to remove.")
+                .padding(18)
+            Divider()
             if let store {
                 outline(store)
                 footer(store)
@@ -70,9 +74,10 @@ struct FoldersView: View {
     }
 
     private func outline(_ store: TreeStore) -> some View {
-        Table(rows(store), children: \.children, selection: $selection) {
+        let advisor = state.safetyAdvisor
+        return Table(rows(store), children: \.children, selection: $selection) {
             TableColumn("") { (row: TreeRow) in
-                if row.isCheckable {
+                if row.isCheckable && !ProtectionPolicy(home: state.homePath).verdict(for: row.path).isLocked {
                     Toggle("", isOn: binding(row.id)).toggleStyle(.checkbox).labelsHidden()
                 }
             }
@@ -89,6 +94,14 @@ struct FoldersView: View {
                 SizeBar(fraction: row.fractionOfParent)
             }
             .width(min: 80, ideal: 140)
+            TableColumn("Safety") { (row: TreeRow) in
+                if row.node.kind != .other {
+                    let assessment = advisor.assess(path: row.path, isPackage: row.node.kind == .package)
+                    SafetyBadge(level: assessment.level, compact: true)
+                        .help("\(assessment.whatItIs). \(assessment.ifDeleted)")
+                }
+            }
+            .width(min: 76, ideal: 84)
             TableColumn("Items") { (row: TreeRow) in
                 Text(row.node.kind == .other ? "" : row.node.itemCount.formatted())
                     .monospacedDigit()

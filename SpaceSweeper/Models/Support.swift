@@ -53,6 +53,10 @@ enum Theme {
     /// #4169E1 royal blue.
     static let royalBlue = Color(red: 0x41 / 255, green: 0x69 / 255, blue: 0xE1 / 255)
     static let accent = Color.accentColor
+    /// Royal-blue gradient for hero cards and header icon tiles.
+    static let heroGradient = LinearGradient(
+        colors: [Color(red: 0.36, green: 0.52, blue: 0.96), royalBlue, Color(red: 0.16, green: 0.29, blue: 0.75)],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
     /// Shades of royal blue for charts, darkest first.
     static let chartPalette: [Color] = [
         Color(red: 0.12, green: 0.23, blue: 0.62),
