@@ -191,6 +191,13 @@ struct DiskSummaryFooter: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                 }
+                // Visible way into Settings, which otherwise lives only in the app menu (⌘,).
+                SettingsLink {
+                    Label("Settings", systemImage: "gearshape")
+                }
+                .buttonStyle(.borderless)
+                .padding(.top, 4)
+                .help("Open Settings (⌘,)")
             }
             .padding(12)
         }
