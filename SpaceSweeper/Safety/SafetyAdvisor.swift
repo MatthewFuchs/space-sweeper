@@ -35,13 +35,13 @@ enum SafetyLevel: Int, Codable, Comparable, CaseIterable, Sendable {
         }
     }
 
-    /// One-line meaning of the level, used in legends and filter tooltips.
+    /// Few-word meaning of the level, used in the legend and tooltips.
     var meaning: String {
         switch self {
-        case .safe: return "Regenerates automatically or is clearly disposable."
-        case .review: return "Your own data. Delete only if you no longer need it."
-        case .caution: return "Deleting loses app data, settings or a whole VM."
-        case .protected: return "SpaceSweeper will never delete this."
+        case .safe: return "Recreated automatically"
+        case .review: return "Your data, check first"
+        case .caution: return "Loses app data or settings"
+        case .protected: return "Never deleted"
         }
     }
 

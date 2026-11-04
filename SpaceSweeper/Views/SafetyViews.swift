@@ -20,41 +20,61 @@ struct SafetyBadge: View {
     }
 }
 
-/// Banner at the top of each section: icon tile, title and a sentence explaining what the list shows.
-struct SectionHeader<Accessory: View>: View {
-    let symbol: String
-    let title: String
-    let subtitle: String
+/// Compact section summary: one large royal-blue number (the thing to look at), a short caption, an optional
+/// ⓘ popover holding the longer explanation, and controls on the right.
+struct SummaryHeader<Accessory: View>: View {
+    let value: String
+    let caption: String
+    var help: String?
     @ViewBuilder var accessory: () -> Accessory
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            Image(systemName: symbol)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 46, height: 46)
-                .background(RoundedRectangle(cornerRadius: 11).fill(Theme.heroGradient))
-                .shadow(color: Theme.royalBlue.opacity(0.25), radius: 4, y: 2)
-            // Text takes the remaining width and is capped in lines. (Unbounded vertical fixedSize here let
-            // SwiftUI measure the subtitle at a near-zero width, inflating the window's minimum height.)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.title2.weight(.semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                Text(subtitle).font(.callout).foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
+        HStack(alignment: .center, spacing: 10) {
+            Text(value)
+                .font(.system(size: 28, weight: .bold).monospacedDigit())
+                .foregroundStyle(Theme.accent)
+                .lineLimit(1)
+                .fixedSize()
+            Text(caption)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(-1)
+            if let help { InfoButton(text: help) }
+            Spacer(minLength: 12)
             accessory()
                 .fixedSize()
         }
     }
 }
 
-extension SectionHeader where Accessory == EmptyView {
-    init(symbol: String, title: String, subtitle: String) {
-        self.init(symbol: symbol, title: title, subtitle: subtitle) { EmptyView() }
+extension SummaryHeader where Accessory == EmptyView {
+    init(value: String, caption: String, help: String? = nil) {
+        self.init(value: value, caption: caption, help: help) { EmptyView() }
+    }
+}
+
+/// Small ⓘ button that shows a short explanation in a popover, keeping the screen itself uncluttered.
+struct InfoButton: View {
+    let text: String
+    @State private var isShown = false
+
+    var body: some View {
+        Button {
+            isShown.toggle()
+        } label: {
+            Image(systemName: "info.circle").foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .help("What is this?")
+        .popover(isPresented: $isShown, arrowEdge: .bottom) {
+            Text(text)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 280, alignment: .leading)
+                .padding(14)
+        }
     }
 }
 
@@ -107,26 +127,28 @@ struct SafetyFilterBar: View {
     }
 }
 
-/// Green callout: "4.2 GB can be deleted safely" with a one-click "Check Safe Items" action.
-struct SafeSummaryCallout: View {
+/// The screen's primary action: "7.2 GB is safe to delete" with a prominent green "Select Safe Items" button.
+struct SafeActionBar: View {
     let tally: SafetyTally
-    var onCheckSafe: () -> Void
+    var onSelectSafe: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "checkmark.shield.fill").font(.title3).foregroundStyle(.green)
-            VStack(alignment: .leading, spacing: 1) {
-                Text("\(tally.size.formattedBytes) can be deleted safely")
-                    .font(.headline)
-                Text("\(tally.count) item\(tally.count == 1 ? "" : "s") that regenerate automatically or are clearly disposable.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+            Text("**\(tally.size.formattedBytes)** is safe to delete")
+                .font(.headline)
+            Text("\(tally.count) item\(tally.count == 1 ? "" : "s")")
+                .foregroundStyle(.secondary)
             Spacer()
-            Button("Check Safe Items", action: onCheckSafe)
+            Button(action: onSelectSafe) {
+                Label("Select Safe Items", systemImage: "checkmark.circle")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
         }
-        .padding(10)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.green.opacity(0.08)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.green.opacity(0.25)))
     }
 }
 
@@ -177,17 +199,17 @@ struct ItemInspector: View {
     }
 }
 
-/// Placeholder shown in the inspector when nothing is selected.
+/// Placeholder shown in the inspector when nothing is selected: one instruction plus a compact legend.
 struct EmptyInspector: View {
     var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "hand.point.up.left").font(.system(size: 34)).foregroundStyle(Theme.accent)
-            Text("Select an item to see what it is and whether it's safe to delete.")
+        VStack(spacing: 16) {
+            Image(systemName: "cursorarrow.click").font(.system(size: 30)).foregroundStyle(Theme.accent)
+            Text("Select a file to see if it's safe to delete")
+                .font(.headline)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(SafetyLevel.allCases, id: \.self) { level in
-                    HStack(alignment: .top, spacing: 8) {
+                    HStack(spacing: 8) {
                         SafetyBadge(level: level, compact: true).frame(width: 82, alignment: .leading)
                         Text(level.meaning).font(.caption).foregroundStyle(.secondary)
                     }

@@ -90,11 +90,11 @@ struct FileTableView<Header: View>: View {
         let rows = self.rows
         let tallies = self.tallies
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 header()
                 SafetyFilterBar(tallies: tallies, visible: $visibleLevels)
                 if let safe = tallies[.safe], safe.count > 0 {
-                    SafeSummaryCallout(tally: safe) {
+                    SafeActionBar(tally: safe) {
                         checked.formUnion(rated.filter { $0.safety.level == .safe }.map(\.id))
                     }
                 }

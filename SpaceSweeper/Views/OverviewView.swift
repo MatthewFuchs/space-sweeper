@@ -55,6 +55,11 @@ struct HeroCard: View {
     let disk: DiskInfo
     let reclaimable: Int64
 
+    /// Size of junk rated Safe: what the hero's button offers to free.
+    private var safeTotal: Int64 {
+        state.junkItems.filter { $0.isDeletable && $0.safety == .safe }.reduce(0) { $0 + $1.size }
+    }
+
     var body: some View {
         let usedFraction = Double(disk.used) / Double(max(disk.total, 1))
         HStack(spacing: 28) {
@@ -78,26 +83,22 @@ struct HeroCard: View {
                     .font(.system(size: 40, weight: .bold).monospacedDigit())
                 Text("\(disk.used.formattedBytes) used of \(disk.total.formattedBytes)")
                     .font(.title3).opacity(0.85)
-                if reclaimable > 0 {
-                    Label("About \(reclaimable.formattedBytes) could be reclaimed", systemImage: "sparkles")
-                        .font(.callout.weight(.semibold))
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Capsule().fill(Color.white.opacity(0.18)))
-                        .padding(.top, 4)
-                }
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 8) {
+            // The one thing to do next: review what's safe to delete.
+            if safeTotal > 0 {
                 Button {
-                    state.startScan()
+                    state.selectedSection = .devJunk
                 } label: {
-                    Label(state.isScanning ? "Scanning…" : "Rescan", systemImage: "arrow.clockwise")
-                        .padding(.horizontal, 6)
+                    Label("Free up \(safeTotal.formattedBytes) safely", systemImage: "checkmark.shield.fill")
+                        .font(.headline)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.white)
                 .foregroundStyle(Theme.royalBlue)
-                .disabled(state.isScanning)
+                .controlSize(.large)
             }
         }
         .foregroundStyle(.white)
@@ -114,26 +115,22 @@ struct QuickWinsCard: View {
 
     var body: some View {
         if !items.isEmpty {
-            Card(title: "Quick wins: safe to delete") {
-                Text("These regenerate automatically, so removing them won't lose any of your work.")
-                    .font(.callout).foregroundStyle(.secondary)
+            Card(title: "Biggest safe wins") {
                 ForEach(items) { item in
                     HStack(spacing: 10) {
                         Image(systemName: item.group.symbol)
                             .foregroundStyle(.white)
                             .frame(width: 28, height: 28)
                             .background(RoundedRectangle(cornerRadius: 7).fill(Theme.heroGradient))
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(item.title).fontWeight(.medium)
-                            Text(item.explanation).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        }
+                        Text(item.title).fontWeight(.medium).lineLimit(1)
+                            .help(item.explanation)
                         Spacer()
                         SafetyBadge(level: item.safety, compact: true)
                         Text(item.size.formattedBytes).font(.body.monospacedDigit().weight(.semibold))
                             .frame(width: 80, alignment: .trailing)
                     }
                 }
-                Button("Review in Developer Junk") { state.selectedSection = .devJunk }
+                Button("See all in Developer Junk →") { state.selectedSection = .devJunk }
                     .buttonStyle(.link)
             }
         }
@@ -216,7 +213,7 @@ struct ReclaimableCard: View {
     let isComputing: Bool
 
     var body: some View {
-        Card(title: "Estimated reclaimable space") {
+        Card(title: "Could be reclaimed") {
             HStack(alignment: .firstTextBaseline) {
                 Text(estimate.total.formattedBytes)
                     .font(.system(size: 34, weight: .bold).monospacedDigit())
@@ -225,38 +222,36 @@ struct ReclaimableCard: View {
             }
             Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
                 GridRow {
-                    Text("Developer junk & caches")
+                    Text("Developer junk")
                     Text(estimate.developerJunk.formattedBytes).monospacedDigit()
                 }
                 GridRow {
-                    Text("Installers & archives in Downloads")
+                    Text("Installers")
                     Text(estimate.installers.formattedBytes).monospacedDigit()
                 }
                 GridRow {
-                    Text("Files untouched for 12+ months (≥ 50 MB)")
+                    Text("Old files (12+ months)")
                     Text(estimate.oldFiles.formattedBytes).monospacedDigit()
                 }
             }
             .foregroundStyle(.secondary)
-            Text("An estimate: review each item before removing it. Moving to the Trash frees space only after the Trash is emptied.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+
         }
     }
 }
 
 /// When and what was last scanned.
 struct ScanInfoCard: View {
+    @Environment(AppState.self) private var state
     let result: ScanResult
 
     var body: some View {
         Card(title: "Last scan") {
-            Text("\(result.itemsScanned.formatted()) items, \(result.totalSize.formattedBytes), scanned \(result.date.formatted(date: .abbreviated, time: .shortened)) in \(String(format: "%.1f", result.duration)) s")
-            Text(result.roots.map { PathUtil.abbreviate($0) }.joined(separator: " · "))
+            Text("\(result.date.formatted(.relative(presentation: .named))) · \(result.itemsScanned.formatted()) items · \(String(format: "%.0f", result.duration)) s")
                 .foregroundStyle(.secondary)
             if !result.skipped.isEmpty {
-                Text("\(result.skipped.count) locations couldn't be scanned — see Couldn't Scan.")
-                    .foregroundStyle(.orange)
+                Button("\(result.skipped.count) folders skipped →") { state.selectedSection = .couldntScan }
+                    .buttonStyle(.link)
             }
         }
     }

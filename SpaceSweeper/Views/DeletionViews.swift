@@ -257,8 +257,9 @@ struct ActivityLogView: View {
             .filter { search.isEmpty || $0.path.localizedCaseInsensitiveContains(search) || ($0.context ?? "").localizedCaseInsensitiveContains(search) }
             .sorted(using: sortOrder)
         VStack(spacing: 0) {
-            SectionHeader(symbol: "list.bullet.rectangle", title: "Activity Log",
-                          subtitle: "Everything SpaceSweeper has moved to the Trash or deleted. Trashed items can be put back from the Trash in Finder.") {
+            SummaryHeader(value: state.activityEntries.reduce(Int64(0)) { $0 + $1.size }.formattedBytes,
+                          caption: "removed in \(state.activityEntries.count) items",
+                          help: "Everything SpaceSweeper has moved to the Trash or deleted. Trashed items can be put back from the Trash in Finder.") {
                 Button("Export CSV…") { export(entries) }
                     .disabled(entries.isEmpty)
             }
