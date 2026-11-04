@@ -42,8 +42,8 @@ struct FoldersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SectionHeader(symbol: "folder", title: folderTitle,
-                          subtitle: "Where your space goes, largest first. Expand a folder to drill down; the badge shows how safe each one is to remove.")
+            SummaryHeader(value: folderTotal, caption: folderCaption,
+                          help: "Where your space goes, largest first. Expand a folder to drill down; the badge shows how safe each one is to remove.")
                 .padding(18)
             Divider()
             if let store {
@@ -55,11 +55,16 @@ struct FoldersView: View {
         .onChange(of: state.result?.totalSize) { _, _ in rebuildStore() }
     }
 
-    /// "~ · 107.7 GB" for a single root, otherwise "Folders".
-    private var folderTitle: String {
-        guard let tree = store?.tree, tree.rootIDs.count == 1, let root = tree.rootIDs.first else { return "Folders" }
-        let node = tree.nodes[Int(root)]
-        return "\(PathUtil.abbreviate(node.name)) · \(node.size.formattedBytes)"
+    /// Total size of everything scanned.
+    private var folderTotal: String { (store?.tree.totalSize ?? 0).formattedBytes }
+
+    /// "in ~" for a single root, otherwise "in N locations".
+    private var folderCaption: String {
+        guard let tree = store?.tree else { return "" }
+        if tree.rootIDs.count == 1, let root = tree.rootIDs.first {
+            return "in \(PathUtil.abbreviate(tree.nodes[Int(root)].name)), largest first"
+        }
+        return "in \(tree.rootIDs.count) locations, largest first"
     }
 
     private func rebuildStore() {

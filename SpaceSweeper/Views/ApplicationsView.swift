@@ -21,8 +21,9 @@ struct ApplicationsView: View {
     var body: some View {
         let rows = self.rows
         VStack(spacing: 0) {
-            SectionHeader(symbol: "square.grid.2x2", title: "Applications",
-                          subtitle: "Apps in /Applications and ~/Applications. Uninstalling also finds the app's leftover files. Apple system apps are locked.") {
+            SummaryHeader(value: state.apps.apps.reduce(Int64(0)) { $0 + ($1.size ?? 0) }.formattedBytes,
+                          caption: "in \(state.apps.apps.count) apps",
+                          help: "Apps in /Applications and ~/Applications. Uninstalling also removes the app's leftover files. Apple system apps are locked.") {
                 HStack(spacing: 8) {
                     if state.apps.isLoading { ProgressView().controlSize(.small) }
                     Button("Reload Apps") { state.apps.load() }
@@ -143,14 +144,14 @@ struct CouldntScanView: View {
             search.isEmpty || $0.path.localizedCaseInsensitiveContains(search) || $0.reason.localizedCaseInsensitiveContains(search)
         }
         VStack(spacing: 0) {
-            SectionHeader(symbol: "exclamationmark.triangle", title: "Couldn't Scan",
-                          subtitle: "Folders that were skipped because macOS protects them, they couldn't be read, or they're cloud placeholders. Their size isn't included anywhere else.")
+            SummaryHeader(value: "\(state.result?.skipped.count ?? 0)", caption: "folders couldn't be scanned",
+                          help: "Skipped because macOS protects them, they couldn't be read, or they're cloud placeholders. Their size isn't counted anywhere else.")
                 .padding(18)
             Divider()
             if !state.hasFullDiskAccess {
                 HStack {
                     Image(systemName: "lock.shield").foregroundStyle(Theme.accent)
-                    Text("Many of these are hidden by macOS privacy protection. Grant Full Disk Access and rescan.")
+                    Text("Grant Full Disk Access to include most of these.")
                     Spacer()
                     Button("Open System Settings") { FullDiskAccess.openSettings() }
                 }
