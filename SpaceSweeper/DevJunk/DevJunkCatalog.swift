@@ -136,8 +136,7 @@ struct DevJunkCatalog {
             if hit.kind == .pythonVenv && !fileManager.fileExists(atPath: PathUtil.join(hit.path, "pyvenv.cfg")) {
                 return nil
             }
-            let project = ((hit.path as NSString).deletingLastPathComponent as NSString).lastPathComponent
-            return DevJunkItem(path: hit.path, title: "\(hit.kind.title) — \(project)",
+            return DevJunkItem(path: hit.path, title: "\(hit.kind.title) — \(Self.projectName(forJunkAt: hit.path))",
                                explanation: hit.kind.explanation, group: .projects, size: hit.size,
                                safety: hit.kind == .pythonVenv ? .review : .safe)
         }
@@ -246,6 +245,18 @@ struct DevJunkCatalog {
             kept.append(item)
         }
         return kept.sorted { $0.size > $1.size }
+    }
+
+    /// The project a junk folder belongs to: its parent folder, or the grandparent when the parent is a platform
+    /// sub-folder such as "ios" (so ".../MyApp/ios/Pods" is labelled "MyApp", not "ios").
+    static func projectName(forJunkAt path: String) -> String {
+        let parent = (path as NSString).deletingLastPathComponent
+        let parentName = (parent as NSString).lastPathComponent
+        if ["ios", "android", "macos"].contains(parentName.lowercased()) {
+            let grandparent = ((parent as NSString).deletingLastPathComponent as NSString).lastPathComponent
+            return "\(grandparent)/\(parentName)"
+        }
+        return parentName
     }
 
     /// "com.microsoft.VSCode" → "Visual Studio Code" when the app is installed.

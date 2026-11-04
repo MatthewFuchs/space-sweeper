@@ -151,3 +151,17 @@ final class DevJunkTests: XCTestCase {
         return try await FileScanner.scan(options: options, progress: ScanProgress())
     }
 }
+
+/// Labels and formatting found during the visual review.
+final class LabelTests: XCTestCase {
+    func testProjectNameSkipsPlatformSubfolders() {
+        XCTAssertEqual(DevJunkCatalog.projectName(forJunkAt: "/Users/t/code/MyApp/ios/Pods"), "MyApp/ios")
+        XCTAssertEqual(DevJunkCatalog.projectName(forJunkAt: "/Users/t/code/web/node_modules"), "web")
+        XCTAssertEqual(DevJunkCatalog.projectName(forJunkAt: "/Users/t/code/tool/target"), "tool")
+    }
+
+    func testZeroBytesIsNumeric() {
+        XCTAssertEqual(Int64(0).formattedBytes, "0 bytes")
+        XCTAssertEqual((2 * GB).formattedBytes, "2 GB")
+    }
+}

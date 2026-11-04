@@ -35,13 +35,19 @@ struct SectionHeader<Accessory: View>: View {
                 .frame(width: 46, height: 46)
                 .background(RoundedRectangle(cornerRadius: 11).fill(Theme.heroGradient))
                 .shadow(color: Theme.royalBlue.opacity(0.25), radius: 4, y: 2)
+            // Text takes the remaining width and is capped in lines. (Unbounded vertical fixedSize here let
+            // SwiftUI measure the subtitle at a near-zero width, inflating the window's minimum height.)
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.title2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
                 Text(subtitle).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
-            Spacer(minLength: 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
             accessory()
+                .fixedSize()
         }
     }
 }
@@ -65,36 +71,39 @@ struct SafetyFilterBar: View {
     var levels: [SafetyLevel] = [.safe, .review, .caution, .protected]
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Text("Show").font(.callout).foregroundStyle(.secondary)
+            // Only levels that have items get a chip; empty chips added noise ("Zero KB").
             ForEach(levels, id: \.self) { level in
-                let tally = tallies[level] ?? SafetyTally()
-                if tally.count > 0 || visible.contains(level) {
+                if let tally = tallies[level], tally.count > 0 {
                     chip(level, tally)
                 }
             }
+            Spacer(minLength: 0)
         }
     }
 
-    /// One toggleable chip: filled when its level is shown, tinted outline when hidden.
+    /// One toggleable chip, kept on a single line: filled when its level is shown, tinted when hidden.
     private func chip(_ level: SafetyLevel, _ tally: SafetyTally) -> some View {
         let isOn = visible.contains(level)
         return Button {
             if isOn { visible.remove(level) } else { visible.insert(level) }
         } label: {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: level.symbol)
                 Text("\(level.shortLabel) \(tally.count)")
-                Text(tally.size.formattedBytes).foregroundStyle(isOn ? Color.white.opacity(0.85) : .secondary)
+                Text("· \(tally.size.formattedBytes)").opacity(0.8)
             }
-            .font(.callout.weight(.medium).monospacedDigit())
+            .font(.caption.weight(.semibold).monospacedDigit())
+            .lineLimit(1)
+            .fixedSize()
             .foregroundStyle(isOn ? Color.white : level.color)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(Capsule().fill(isOn ? (level == .protected ? Color.gray : level.color) : level.color.opacity(0.10)))
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(isOn ? (level == .protected ? Color.gray : level.color) : level.color.opacity(0.12)))
         }
         .buttonStyle(.plain)
-        .help(level.meaning)
+        .help("\(isOn ? "Hide" : "Show") items rated \(level.shortLabel): \(level.meaning)")
     }
 }
 

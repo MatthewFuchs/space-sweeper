@@ -22,7 +22,14 @@ struct ApplicationsView: View {
         let rows = self.rows
         VStack(spacing: 0) {
             SectionHeader(symbol: "square.grid.2x2", title: "Applications",
-                          subtitle: "Apps in /Applications and ~/Applications. Uninstalling also finds the app's leftover files. Apple system apps are locked.")
+                          subtitle: "Apps in /Applications and ~/Applications. Uninstalling also finds the app's leftover files. Apple system apps are locked.") {
+                HStack(spacing: 8) {
+                    if state.apps.isLoading { ProgressView().controlSize(.small) }
+                    Button("Reload Apps") { state.apps.load() }
+                        .disabled(state.apps.isLoading)
+                        .help("Reload the list of applications")
+                }
+            }
                 .padding(18)
             Divider()
             table(rows)
@@ -32,17 +39,7 @@ struct ApplicationsView: View {
         .task {
             if state.apps.apps.isEmpty { state.apps.load() }
         }
-        .toolbar {
-            ToolbarItem {
-                Button {
-                    state.apps.load()
-                } label: {
-                    Label("Reload Apps", systemImage: "arrow.triangle.2.circlepath")
-                }
-                .disabled(state.apps.isLoading)
-                .help("Reload the list of applications")
-            }
-        }
+
     }
 
     private func table(_ rows: [AppInfo]) -> some View {

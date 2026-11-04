@@ -8,8 +8,16 @@ let GB: Int64 = 1_000_000_000
 extension Int64 {
     /// "1.2 GB" style, same units Finder uses.
     var formattedBytes: String {
-        ByteCountFormatter.string(fromByteCount: self, countStyle: .file)
+        Self.byteFormatter.string(fromByteCount: self)
     }
+
+    /// File-style formatter that writes "0 bytes" rather than the system default "Zero KB".
+    private static let byteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter
+    }()
 }
 
 enum PathUtil {
