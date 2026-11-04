@@ -186,8 +186,30 @@ final class AppState {
     // MARK: Deletion
 
     var deletionEnabled: Bool { true }
-    var uninstallEnabled: Bool { false }
-    func requestUninstall(_ apps: [AppInfo]) {}
+    var uninstallEnabled: Bool { true }
+    /// True while leftovers are being searched for, before the review sheet opens.
+    private(set) var isPreparingUninstall = false
+
+    /// Finds each app's leftovers off the main thread, then opens the review sheet (app bundle + leftover checklist).
+    func requestUninstall(_ apps: [AppInfo]) {
+        let removable = apps.filter { $0.protectionReason == nil }
+        guard !removable.isEmpty, !isPreparingUninstall else { return }
+        isPreparingUninstall = true
+        let home = homePath
+        Task { [weak self] in
+            let items = await Task.detached(priority: .userInitiated) { () -> [DeletionItem] in
+                let policy = ProtectionPolicy(home: home)
+                let finder = LeftoverFinder(home: home)
+                return removable.flatMap { app in
+                    UninstallPlanner.items(for: app, leftovers: finder.find(for: app), policy: policy)
+                }
+            }.value
+            guard let self else { return }
+            self.isPreparingUninstall = false
+            let title = removable.count == 1 ? "Uninstall \(removable[0].name)" : "Uninstall \(removable.count) apps"
+            self.review = ReviewRequest(title: title, kind: .uninstall(apps: removable), items: items)
+        }
+    }
 
     /// Builds the review sheet for `paths`. Sizes come from the scan when available.
     func requestDeletion(paths: [String]) {
@@ -219,13 +241,14 @@ final class AppState {
         review = nil
         isDeleting = true
         let items = request.items
-        let context: String? = {
-            if case .uninstall(let appPaths) = request.kind {
-                return "Uninstall " + appPaths.map { (($0 as NSString).lastPathComponent as NSString).deletingPathExtension }.joined(separator: ", ")
-            }
-            return nil
-        }()
-        let service = DeletionService(policy: ProtectionPolicy(home: homePath), log: activityLog)
+        var context: String?
+        var remover: FileRemoving = SystemFileRemover()
+        if case .uninstall(let apps) = request.kind {
+            context = "Uninstall " + apps.map(\.name).joined(separator: ", ")
+            // Apps owned by root or another user need the administrator prompt instead of failing silently.
+            remover = PrivilegedFallbackRemover()
+        }
+        let service = DeletionService(policy: ProtectionPolicy(home: homePath), remover: remover, log: activityLog)
         Task { [weak self] in
             let outcome = await Task.detached(priority: .userInitiated) {
                 service.perform(items, mode: mode, context: context)
