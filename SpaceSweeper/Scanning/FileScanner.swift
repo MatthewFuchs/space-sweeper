@@ -29,6 +29,7 @@ enum FileScanner {
                                            progress: progress, hardLinks: hardLinks)
             try Task.checkCancellation()
 
+            // Splice each unit's subtree under its placeholder and add its totals to every ancestor.
             for (unit, unitOutput) in units {
                 let placeholder = base + unit.nodeIndex
                 let offset = Int32(nodes.count) - 1
@@ -76,6 +77,7 @@ enum FileScanner {
             junkHits: junk, skipped: output.skipped.sorted { $0.path < $1.path })
     }
 
+    /// Appends one walker's files, packages, junk hits and skipped paths to the combined output.
     private static func merge(_ source: WalkerOutput, into target: inout WalkerOutput) {
         target.files += source.files
         target.packages += source.packages

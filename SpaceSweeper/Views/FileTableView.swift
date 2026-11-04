@@ -124,6 +124,7 @@ struct FileTableView<Header: View>: View {
         .quickLookPreview($previewURL, in: rows.map(\.url))
     }
 
+    /// Footer with checked count/size and actions.
     private func footer(_ rows: [FileRecord]) -> some View {
         let checkedRecords = records.filter { checked.contains($0.id) }
         let removeAction: (() -> Void)? = onRemove.map { remove in { remove(checkedRecords) } }
@@ -139,6 +140,7 @@ struct FileTableView<Header: View>: View {
         )
     }
 
+    /// Checkbox binding for one row.
     private func binding(for id: FileRecord.ID) -> Binding<Bool> {
         Binding(
             get: { checked.contains(id) },
@@ -147,10 +149,12 @@ struct FileTableView<Header: View>: View {
             })
     }
 
+    /// Reveal acts on highlighted rows, falling back to checked rows.
     private func revealTargets(_ checkedRecords: [FileRecord]) -> [String] {
         selection.isEmpty ? checkedRecords.map(\.path) : Array(selection)
     }
 
+    /// Space bar: opens Quick Look for the highlighted (or first checked) row, or closes it.
     private func togglePreview(rows: [FileRecord]) {
         if previewURL != nil {
             previewURL = nil
