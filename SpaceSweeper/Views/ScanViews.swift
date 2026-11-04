@@ -37,6 +37,7 @@ struct ScanToolbar: ToolbarContent {
     }
 }
 
+/// Popover listing scan roots with add/remove controls.
 struct ScanLocationsView: View {
     @Environment(AppState.self) private var state
 
@@ -71,6 +72,7 @@ struct ScanLocationsView: View {
         .frame(width: 380)
     }
 
+    /// Lets the user pick extra folders or volumes (starts in /Volumes).
     private func addFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -111,6 +113,7 @@ struct ScanProgressBar: View {
     }
 }
 
+/// m:ss elapsed since `start`, refreshed every second.
 struct ElapsedTimeText: View {
     let start: Date?
 
@@ -124,6 +127,7 @@ struct ElapsedTimeText: View {
     }
 }
 
+/// Full-pane progress shown during the first scan, when there are no results to display yet.
 struct ScanInProgressView: View {
     @Environment(AppState.self) private var state
 
@@ -145,6 +149,7 @@ struct ScanInProgressView: View {
     }
 }
 
+/// Empty state before the first scan.
 struct NoScanView: View {
     @Environment(AppState.self) private var state
 

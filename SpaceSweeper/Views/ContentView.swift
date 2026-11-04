@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Sidebar sections. The raw value is persisted in scene storage.
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
     case overview, largeFiles, oldFiles, folders, devJunk, applications, couldntScan, activity
 
@@ -31,10 +32,12 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Main sections and secondary sections, shown as two sidebar groups.
     static let library: [SidebarItem] = [.overview, .largeFiles, .oldFiles, .folders, .devJunk, .applications]
     static let more: [SidebarItem] = [.couldntScan, .activity]
 }
 
+/// Main window: sidebar navigation, toolbar and the selected section.
 struct ContentView: View {
     @Environment(AppState.self) private var state
     @SceneStorage("sidebarSelection") private var selection: SidebarItem = .overview
@@ -67,6 +70,7 @@ struct ContentView: View {
         }
     }
 
+    /// The selected section, or a scan prompt/progress view when there are no results yet.
     @ViewBuilder
     private var detail: some View {
         if state.result == nil && selection != .applications && selection != .activity {
@@ -77,13 +81,20 @@ struct ContentView: View {
             }
         } else {
             switch selection {
+            case .overview: OverviewView()
             case .largeFiles: LargeFilesView()
-            default: ComingSoonView(title: selection.title)
+            case .oldFiles: OldFilesView()
+            case .folders: FoldersView()
+            case .devJunk: DevJunkView()
+            case .applications: ApplicationsView()
+            case .couldntScan: CouldntScanView()
+            case .activity: ComingSoonView(title: selection.title)
             }
         }
     }
 }
 
+/// Placeholder for sections that are added in a later build stage.
 struct ComingSoonView: View {
     let title: String
     var body: some View {
