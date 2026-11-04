@@ -112,7 +112,7 @@ struct FileTableView<Header: View>: View {
         }
         .inspector(isPresented: $showInspector) {
             inspector
-                .inspectorColumnWidth(min: 240, ideal: 290, max: 380)
+                .inspectorColumnWidth(min: 220, ideal: 260, max: 360)
         }
         .toolbar {
             ToolbarItem {
@@ -153,31 +153,31 @@ struct FileTableView<Header: View>: View {
             TableColumn("Name", value: \RatedFile.name) { (row: RatedFile) in
                 FileNameCell(record: row.record, subtitle: row.safety.whatItIs)
             }
-            .width(min: 180, ideal: 260)
+            .width(min: 150, ideal: 240)
             TableColumn("Safety", value: \RatedFile.safetyRank) { (row: RatedFile) in
                 SafetyBadge(level: row.safety.level).help(row.safety.ifDeleted)
             }
-            .width(min: 84, ideal: 94)
+            .width(min: 84, ideal: 92)
             TableColumn("Size", value: \RatedFile.size) { (row: RatedFile) in
                 SizeWithBar(size: row.size, maxSize: maxSize)
             }
-            .width(min: 80, ideal: 96)
+            .width(min: 72, ideal: 90)
             TableColumn("Last Modified", value: \RatedFile.modified) { (row: RatedFile) in
                 Text(row.modified.formatted(date: .abbreviated, time: .omitted))
             }
-            .width(min: 90, ideal: 105)
+            .width(min: 76, ideal: 100)
             TableColumn("Last Opened", value: \RatedFile.lastOpened) { (row: RatedFile) in
                 LastOpenedCell(record: row.record)
             }
-            .width(min: 90, ideal: 105)
+            .width(min: 76, ideal: 100)
             TableColumn("Kind", value: \RatedFile.kind) { (row: RatedFile) in
                 Text(row.kind).lineLimit(1).foregroundStyle(.secondary)
             }
-            .width(min: 70, ideal: 110)
+            .width(min: 56, ideal: 100)
             TableColumn("Path", value: \RatedFile.path) { (row: RatedFile) in
                 PathCell(path: row.path)
             }
-            .width(min: 140, ideal: 300)
+            .width(min: 90, ideal: 260)
         }
         .contextMenu(forSelectionType: RatedFile.ID.self) { ids in
             Button("Reveal in Finder") { AppState.revealInFinder(Array(ids)) }

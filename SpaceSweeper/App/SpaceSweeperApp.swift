@@ -11,6 +11,8 @@ struct SpaceSweeperApp: App {
                 .frame(minWidth: 980, minHeight: 620)
                 .tint(Theme.accent)
         }
+        // Roomy default so all table columns fit next to the inspector on a laptop screen.
+        .defaultSize(width: 1380, height: 860)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("Rescan") { state.startScan() }

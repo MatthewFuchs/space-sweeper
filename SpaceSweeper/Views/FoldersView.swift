@@ -42,7 +42,7 @@ struct FoldersView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            SectionHeader(symbol: "folder", title: "Folders",
+            SectionHeader(symbol: "folder", title: folderTitle,
                           subtitle: "Where your space goes, largest first. Expand a folder to drill down; the badge shows how safe each one is to remove.")
                 .padding(18)
             Divider()
@@ -55,6 +55,13 @@ struct FoldersView: View {
         .onChange(of: state.result?.totalSize) { _, _ in rebuildStore() }
     }
 
+    /// "~ · 107.7 GB" for a single root, otherwise "Folders".
+    private var folderTitle: String {
+        guard let tree = store?.tree, tree.rootIDs.count == 1, let root = tree.rootIDs.first else { return "Folders" }
+        let node = tree.nodes[Int(root)]
+        return "\(PathUtil.abbreviate(node.name)) · \(node.size.formattedBytes)"
+    }
+
     private func rebuildStore() {
         store = state.result.map { TreeStore(tree: $0.tree) }
         checked.removeAll()
@@ -64,7 +71,12 @@ struct FoldersView: View {
     /// With a search term, shows a flat list of matching folders/files; otherwise the expandable tree.
     private func rows(_ store: TreeStore) -> [TreeRow] {
         if search.isEmpty {
-            return store.tree.rootIDs.map { TreeRow(id: $0, store: store) }
+            // With a single scan root, start one level in: a lone collapsed "~" row hid everything useful.
+            let tree = store.tree
+            if tree.rootIDs.count == 1, let root = tree.rootIDs.first {
+                return tree.nodes[Int(root)].children.map { TreeRow(id: $0, store: store) }
+            }
+            return tree.rootIDs.map { TreeRow(id: $0, store: store) }
         }
         return store.tree.nodes.indices
             .filter { store.tree.nodes[$0].kind != .other && store.tree.nodes[$0].name.localizedCaseInsensitiveContains(search) }
@@ -77,8 +89,14 @@ struct FoldersView: View {
         let advisor = state.safetyAdvisor
         return Table(rows(store), children: \.children, selection: $selection) {
             TableColumn("") { (row: TreeRow) in
-                if row.isCheckable && !ProtectionPolicy(home: state.homePath).verdict(for: row.path).isLocked {
-                    Toggle("", isOn: binding(row.id)).toggleStyle(.checkbox).labelsHidden()
+                if row.isCheckable {
+                    if ProtectionPolicy(home: state.homePath).verdict(for: row.path).isLocked {
+                        // Same lock affordance as the other lists, instead of an unexplained gap.
+                        Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                            .help("Protected: SpaceSweeper won't delete this folder")
+                    } else {
+                        Toggle("", isOn: binding(row.id)).toggleStyle(.checkbox).labelsHidden()
+                    }
                 }
             }
             .width(22)
@@ -123,7 +141,7 @@ struct FoldersView: View {
         let checkedPaths = checked.map { store.tree.path(of: $0) }
         let size = checked.reduce(Int64(0)) { $0 + store.tree.nodes[Int($1)].size }
         return SelectionFooter(
-            checkedCount: checked.count, checkedSize: size, totalCount: store.tree.nodes.count,
+            checkedCount: checked.count, checkedSize: size, totalCount: rows(store).count,
             onCheckAll: { checked.formUnion(selection) },
             onUncheckAll: { checked.removeAll() },
             onReveal: { AppState.revealInFinder(selection.isEmpty ? checkedPaths : selection.map { store.tree.path(of: $0) }) },
