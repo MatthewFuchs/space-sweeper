@@ -32,8 +32,8 @@ struct DeletionItem: Identifiable, Hashable, Sendable {
 struct ReviewRequest: Identifiable {
     enum Kind {
         case files
-        /// Uninstalling apps: the paths of the .app bundles being removed.
-        case uninstall(appPaths: [String])
+        /// Uninstalling apps: the apps whose bundles (and chosen leftovers) are being removed.
+        case uninstall(apps: [AppInfo])
     }
 
     let id = UUID()
@@ -44,6 +44,12 @@ struct ReviewRequest: Identifiable {
     var removableItems: [DeletionItem] { items.filter(\.isRemovable) }
     var removableSize: Int64 { removableItems.reduce(0) { $0 + $1.size } }
     var ownerBundleIDs: Set<String> { Set(items.filter(\.isRemovable).flatMap(\.ownerBundleIDs)) }
+
+    /// Bundle IDs of apps being uninstalled. These must not be running; other owners only trigger a warning.
+    var uninstallBundleIDs: Set<String> {
+        if case .uninstall(let apps) = kind { return Set(apps.compactMap(\.bundleID)) }
+        return []
+    }
 }
 
 /// Outcome of a deletion run, shown to the user afterwards.

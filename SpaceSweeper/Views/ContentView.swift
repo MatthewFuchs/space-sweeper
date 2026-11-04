@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Sidebar sections. The raw value is persisted in scene storage.
 enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
-    case overview, largeFiles, oldFiles, folders, devJunk, applications, couldntScan, activity
+    case overview, largeFiles, oldFiles, folders, devJunk, applications, couldntScan, activity, help
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .applications: return "Applications"
         case .couldntScan: return "Couldn't Scan"
         case .activity: return "Activity Log"
+        case .help: return "Help"
         }
     }
 
@@ -29,12 +30,15 @@ enum SidebarItem: String, CaseIterable, Identifiable, Hashable {
         case .applications: return "square.grid.2x2"
         case .couldntScan: return "exclamationmark.triangle"
         case .activity: return "list.bullet.rectangle"
+        case .help: return "questionmark.circle"
         }
     }
 
     /// Main sections and secondary sections, shown as two sidebar groups.
     static let library: [SidebarItem] = [.overview, .largeFiles, .oldFiles, .folders, .devJunk, .applications]
-    static let more: [SidebarItem] = [.couldntScan, .activity]
+    static let more: [SidebarItem] = [.couldntScan, .activity, .help]
+    /// Sections that work without scan results.
+    var needsScan: Bool { ![.applications, .activity, .help].contains(self) }
 }
 
 /// Main window: sidebar navigation, toolbar and the selected section.
@@ -103,7 +107,7 @@ struct ContentView: View {
     @ViewBuilder
     private var detail: some View {
         let selection = state.selectedSection
-        if state.result == nil && selection != .applications && selection != .activity {
+        if state.result == nil && selection.needsScan {
             if state.isScanning {
                 ScanInProgressView()
             } else {
@@ -119,15 +123,9 @@ struct ContentView: View {
             case .applications: ApplicationsView()
             case .couldntScan: CouldntScanView()
             case .activity: ActivityLogView()
+            case .help: HelpView()
             }
         }
     }
 }
 
-/// Placeholder for sections that are added in a later build stage.
-struct ComingSoonView: View {
-    let title: String
-    var body: some View {
-        ContentUnavailableView(title, systemImage: "hammer", description: Text("Not built yet."))
-    }
-}

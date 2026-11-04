@@ -25,7 +25,7 @@ struct ApplicationsView: View {
                           caption: "in \(state.apps.apps.count) apps",
                           help: "Apps in /Applications and ~/Applications. Uninstalling also removes the app's leftover files. Apple system apps are locked.") {
                 HStack(spacing: 8) {
-                    if state.apps.isLoading { ProgressView().controlSize(.small) }
+                    if state.apps.isLoading || state.isPreparingUninstall { ProgressView().controlSize(.small) }
                     Button("Reload Apps") { state.apps.load() }
                         .disabled(state.apps.isLoading)
                         .help("Reload the list of applications")

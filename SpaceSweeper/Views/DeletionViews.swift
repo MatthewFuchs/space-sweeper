@@ -83,7 +83,7 @@ struct ReviewSheet: View {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 6) {
                 Text("Quit these apps first").font(.headline)
-                Text("They use some of these files and may recreate them, keep them locked, or misbehave if they disappear while running.")
+                Text("They use these files and may recreate them or misbehave if they disappear.")
                     .font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
@@ -103,6 +103,11 @@ struct ReviewSheet: View {
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.10)))
     }
 
+    /// Apps being uninstalled that are still running; removing them is blocked until they quit.
+    private var runningTargets: [NSRunningApplication] {
+        runningApps.filter { request.uninstallBundleIDs.contains($0.bundleIdentifier ?? "") }
+    }
+
     private func footer(_ removable: [DeletionItem]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Moving to the Trash is reversible. The space is freed when you empty the Trash.", systemImage: "arrow.uturn.backward.circle")
@@ -110,13 +115,17 @@ struct ReviewSheet: View {
                 .foregroundStyle(.secondary)
             HStack {
                 Button("Delete Permanently…") { confirmPermanent = true }
-                    .disabled(removable.isEmpty)
+                    .disabled(removable.isEmpty || !runningTargets.isEmpty)
                     .help("Skip the Trash. Asks for confirmation; cannot be undone.")
                 Spacer()
                 Button("Cancel") { dismiss() }
                     .keyboardShortcut(.defaultAction)
+                if !runningTargets.isEmpty {
+                    Text("Quit \(runningTargets.compactMap(\.localizedName).joined(separator: ", ")) first")
+                        .font(.callout).foregroundStyle(.orange)
+                }
                 Button("Move to Trash") { state.performDeletion(request, mode: .trash) }
-                    .disabled(removable.isEmpty)
+                    .disabled(removable.isEmpty || !runningTargets.isEmpty)
             }
             .controlSize(.large)
         }

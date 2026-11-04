@@ -122,3 +122,33 @@ final class OverviewAndAppsTests: XCTestCase {
                        "This is SpaceSweeper", "matched by path")
     }
 }
+
+/// Keeps the Help section consistent with how the app actually behaves.
+final class HelpTests: XCTestCase {
+    func testEveryRatingIsExplainedWithAnExample() {
+        for level in SafetyLevel.allCases {
+            XCTAssertFalse(level.meaning.isEmpty)
+            XCTAssertFalse(HelpContent.ratingExamples[level, default: ""].isEmpty, "\(level)")
+            XCTAssertTrue(HelpContent.dataKinds.contains { $0.rating == level }, "a data kind shows \(level)")
+        }
+    }
+
+    func testDataKindRatingsMatchTheSafetyRules() {
+        let home = "/Users/tester"
+        let advisor = SafetyAdvisor(policy: ProtectionPolicy(home: home, appBundlePath: "/Applications/SpaceSweeper.app"))
+        for kind in HelpContent.dataKinds {
+            guard let sample = kind.samplePath else { continue }
+            XCTAssertEqual(advisor.assess(path: PathUtil.join(home, sample)).level, kind.rating,
+                           "Help says \(kind.name) is \(kind.rating) but the app rates \(sample) differently")
+        }
+    }
+
+    func testHelpTextIsFilledIn() {
+        for kind in HelpContent.dataKinds {
+            XCTAssertFalse(kind.examples.isEmpty, kind.name)
+            XCTAssertFalse(kind.ifDeleted.isEmpty, kind.name)
+        }
+        XCTAssertTrue(HelpContent.faqs.allSatisfy { !$0.answer.isEmpty })
+        XCTAssertEqual(Set(HelpContent.dataKinds.map(\.name)).count, HelpContent.dataKinds.count, "names are unique")
+    }
+}

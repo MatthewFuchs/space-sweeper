@@ -22,6 +22,11 @@ struct SpaceSweeperApp: App {
                     .keyboardShortcut(".", modifiers: [.command])
                     .disabled(!state.isScanning)
             }
+            // Help › SpaceSweeper Help opens the in-app guide.
+            CommandGroup(replacing: .help) {
+                Button("SpaceSweeper Help") { state.selectedSection = .help }
+                    .keyboardShortcut("?", modifiers: [.command])
+            }
         }
     }
 }
