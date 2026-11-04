@@ -27,6 +27,7 @@ struct AppSettings {
         static let excludedPaths = "excludedPaths"
         static let recentChangeDays = "recentChangeDays"
         static let showPermanentDelete = "showPermanentDelete"
+        static let securityIgnored = "securityIgnored"
     }
 
     /// Choices offered for "recently modified".
@@ -64,6 +65,12 @@ struct AppSettings {
     var showPermanentDelete: Bool {
         get { defaults.object(forKey: Key.showPermanentDelete) as? Bool ?? true }
         nonmutating set { defaults.set(newValue, forKey: Key.showPermanentDelete) }
+    }
+
+    /// Security Check findings the user marked as trusted.
+    var securityIgnored: Set<String> {
+        get { Set(defaults.stringArray(forKey: Key.securityIgnored) ?? []) }
+        nonmutating set { defaults.set(newValue.sorted(), forKey: Key.securityIgnored) }
     }
 
     /// The protection policy with the user's "recently modified" window applied.

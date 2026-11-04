@@ -77,6 +77,8 @@ enum HelpContent {
                 answer: "It lets SpaceSweeper see folders macOS hides by default, such as Mail and other apps' data, so totals are complete. Without it those folders appear under Couldn't Scan."),
         HelpFAQ(question: "Can I undo a deletion?",
                 answer: "Yes, if you used Move to Trash: open the Trash in Finder and choose Put Back. \"Delete Permanently\" cannot be undone. The Activity Log lists everything removed."),
+        HelpFAQ(question: "Is Security Check an antivirus?",
+                answer: "No. It points out things that are unusual for legitimate software, such as a broken app signature, a program disguised as a document, or a hidden program that starts automatically, using checks macOS already provides. A flag isn't proof of malware, and no flag isn't proof of safety. macOS's built-in XProtect and Gatekeeper protect you as well."),
         HelpFAQ(question: "What does uninstalling remove?",
                 answer: "The app plus files it left in your Library: caches, preferences, saved state and similar. Matches by app name start unticked so you can check them first."),
     ]
@@ -93,7 +95,7 @@ enum HelpContent {
         ("Summary",
          "SpaceSweeper does not collect, sell or share personal data. It has no accounts, analytics, tracking or ads, and it works offline."),
         ("What SpaceSweeper reads",
-         "To show what uses your disk, it reads file and folder names, sizes and dates, and Spotlight's \"last used\" date. To identify apps it reads each app's Info.plist (name, version, bundle identifier) and the background-helper (LaunchAgent) files in your Library. It does not open or read the contents of your documents, photos or other files."),
+         "To show what uses your disk, it reads file and folder names, sizes and dates, and Spotlight's \"last used\" date. To identify apps it reads each app's Info.plist (name, version, bundle identifier) and the background-helper (LaunchAgent) files in your Library. Security Check reads code signatures (using macOS's own checks), the startup-item files in Library, and the download source macOS records for files. It does not open or read the contents of your documents, photos or other files."),
         ("What SpaceSweeper stores",
          "Your last scan, the activity log of items you removed, and your settings are stored only on this Mac, in ~/Library/Application Support/SpaceSweeper and the app's preferences. You can delete the saved scan and clear the log in Settings › Privacy."),
         ("Network",

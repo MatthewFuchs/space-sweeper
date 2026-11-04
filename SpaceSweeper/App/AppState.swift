@@ -103,6 +103,33 @@ final class AppState {
         }
     }
 
+    // MARK: Security Check
+
+    private(set) var securityFindings: [SecurityFinding] = []
+    private(set) var isCheckingSecurity = false
+    private(set) var lastSecurityCheck: Date?
+    /// Paths the user marked as trusted; hidden from the results.
+    private(set) var securityIgnored: Set<String> = []
+
+    /// Runs the offline Security Check in the background.
+    func runSecurityCheck() {
+        guard !isCheckingSecurity else { return }
+        isCheckingSecurity = true
+        let home = homePath
+        Task { [weak self] in
+            let findings = await Task.detached(priority: .userInitiated) { SecurityScanner.standard(home: home).scan() }.value
+            guard let self else { return }
+            self.securityFindings = findings
+            self.lastSecurityCheck = Date()
+            self.isCheckingSecurity = false
+        }
+    }
+
+    func setSecurityIgnored(_ path: String, ignored: Bool) {
+        if ignored { securityIgnored.insert(path) } else { securityIgnored.remove(path) }
+        settings.securityIgnored = securityIgnored
+    }
+
     // MARK: Environment
     var disk: DiskInfo? = DiskInfo.current()
     var hasFullDiskAccess = FullDiskAccess.isGranted()
@@ -127,6 +154,7 @@ final class AppState {
         self.activityLog = activityLog
         activityEntries = activityLog.entries
         scanRoots = UserDefaults.standard.stringArray(forKey: "scanRoots") ?? [NSHomeDirectory()]
+        securityIgnored = settings.securityIgnored
         loadCache()
         refreshSystemSpace()
     }

