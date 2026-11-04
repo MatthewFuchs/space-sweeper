@@ -89,6 +89,13 @@ enum AppScanner {
         return nil
     }
 
+    /// The first application folder that exists but can't be listed, if any.
+    static func unreadableFolder(in folders: [String]) -> String? {
+        folders.first { folder in
+            FileManager.default.fileExists(atPath: folder) && (try? FileManager.default.contentsOfDirectory(atPath: folder)) == nil
+        }
+    }
+
     static func lastUsedDate(_ path: String) -> Date? {
         SpotlightMetadata.lastUsedDate(forPath: path)
     }
@@ -110,12 +117,15 @@ enum AppScanner {
 final class AppInventory {
     private(set) var apps: [AppInfo] = []
     private(set) var isLoading = false
+    /// Set when no application folder could be read.
+    private(set) var loadError: String?
     private var loadTask: Task<Void, Never>?
 
     /// (Re)loads the app list, then measures bundle sizes in the background with limited parallelism.
     func load(folders: [String] = AppScanner.defaultFolders()) {
         loadTask?.cancel()
         isLoading = true
+        loadError = nil
         loadTask = Task { [weak self] in
             let found = await Task.detached(priority: .userInitiated) {
                 AppScanner.findApps(in: folders).map { app -> AppInfo in
@@ -126,6 +136,11 @@ final class AppInventory {
             }.value
             guard let self, !Task.isCancelled else { return }
             self.apps = found
+            if found.isEmpty, let unreadable = AppScanner.unreadableFolder(in: folders) {
+                self.loadError = "\(unreadable) can't be read. Check that SpaceSweeper has Full Disk Access."
+                self.isLoading = false
+                return
+            }
             await self.measureSizes(of: found.map(\.path))
             self.isLoading = false
         }

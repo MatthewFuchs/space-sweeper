@@ -233,3 +233,65 @@ struct FullDiskAccessView: View {
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
+
+/// Dismissible banner for the current notice, with its action button.
+struct NoticeBanner: View {
+    @Environment(AppState.self) private var state
+    let notice: AppNotice
+
+    private var tint: Color {
+        switch notice.kind {
+        case .info: return Theme.accent
+        case .warning: return .orange
+        case .error: return .red
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: notice.kind.symbol).foregroundStyle(tint).font(.title3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(notice.title).font(.headline)
+                Text(notice.message).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer()
+            if let action = notice.action {
+                Button(action.title) { perform(action) }
+            }
+            Button {
+                state.notice = nil
+            } label: {
+                Image(systemName: "xmark").foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Dismiss")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(tint.opacity(0.10))
+        .overlay(alignment: .bottom) { Divider() }
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private func perform(_ action: AppNotice.Action) {
+        state.notice = nil
+        switch action {
+        case .rescan: state.startScan()
+        case .openFullDiskAccess: FullDiskAccess.openSettings()
+        case .retryApps: state.apps.load()
+        }
+    }
+}
+
+/// Centered spinner with a short message, used while something loads for the first time.
+struct LoadingView: View {
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView().controlSize(.large)
+            Text(message).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}

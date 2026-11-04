@@ -12,6 +12,9 @@ struct ScanOptions: Sendable {
     var splitDepth: Int? = 2
     var maxConcurrency: Int = max(2, min(ProcessInfo.processInfo.activeProcessorCount - 2, 8))
     var useBulkAPI = true
+    /// Read Spotlight "last used" dates during the scan. The app turns this off and loads them afterwards,
+    /// so results appear sooner.
+    var readSpotlightDates = true
 }
 
 struct WalkContext: Sendable {

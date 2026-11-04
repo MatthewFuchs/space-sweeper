@@ -33,7 +33,21 @@ struct ApplicationsView: View {
             }
                 .padding(18)
             Divider()
-            table(rows)
+            if state.apps.isLoading && state.apps.apps.isEmpty {
+                LoadingView(message: "Finding apps…")
+            } else if let error = state.apps.loadError, state.apps.apps.isEmpty {
+                ContentUnavailableView {
+                    Label("Couldn't list applications", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(error)
+                } actions: {
+                    Button("Try Again") { state.apps.load() }
+                }
+            } else if rows.isEmpty {
+                ContentUnavailableView(search.isEmpty ? "No apps found" : "No matches", systemImage: "square.grid.2x2")
+            } else {
+                table(rows)
+            }
             footer(rows)
         }
         .searchable(text: $search, placement: .toolbar, prompt: "Search apps")
@@ -119,9 +133,7 @@ struct AppNameCell: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(nsImage: IconCache.icon(forPath: app.path))
-                .resizable()
-                .frame(width: 20, height: 20)
+            LazyIcon(path: app.path, size: 20)
             VStack(alignment: .leading, spacing: 0) {
                 Text(app.name).lineLimit(1)
                 if let reason = app.protectionReason {

@@ -166,9 +166,7 @@ struct ItemInspector: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(spacing: 8) {
-                    Image(nsImage: NSWorkspace.shared.icon(forFile: path))
-                        .resizable()
-                        .frame(width: 72, height: 72)
+                    LazyIcon(path: path, size: 72)
                     Text((path as NSString).lastPathComponent)
                         .font(.headline)
                         .multilineTextAlignment(.center)

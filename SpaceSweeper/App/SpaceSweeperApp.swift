@@ -3,6 +3,8 @@ import SwiftUI
 @main
 struct SpaceSweeperApp: App {
     @State private var state = AppState()
+    /// Sparkle updater; stays off until the build has a feed URL and signing key.
+    @State private var updates = UpdateController()
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +16,9 @@ struct SpaceSweeperApp: App {
         // Roomy default so all table columns fit next to the inspector on a laptop screen.
         .defaultSize(width: 1380, height: 860)
         .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesCommand(updates: updates)
+            }
             CommandGroup(after: .newItem) {
                 Button("Rescan") { state.startScan() }
                     .keyboardShortcut("r", modifiers: [.command])
@@ -27,6 +32,10 @@ struct SpaceSweeperApp: App {
                 Button("SpaceSweeper Help") { state.selectedSection = .help }
                     .keyboardShortcut("?", modifiers: [.command])
             }
+        }
+
+        Settings {
+            SettingsView(updates: updates)
         }
     }
 }
