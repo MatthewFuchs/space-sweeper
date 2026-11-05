@@ -93,9 +93,31 @@ jobs:
 
       - name: Sign with the SpaceSweeper Release certificate
         run: |
-          codesign --force --deep --options runtime --timestamp=none -s "SpaceSweeper Release" "$APP"
-          codesign --verify --deep --strict --verbose=2 "$APP"
+          scripts/sign-app.sh "$APP"
           codesign -d -r- "$APP"
+
+      - name: Check every part is signed and the app launches
+        run: |
+          # v1.0.1 was signed with hardened runtime, so macOS refused to load Sparkle and the app crashed
+          # at launch. Every executable must carry the release certificate and must not use the runtime flag.
+          bad=0
+          while IFS= read -r f; do
+            info="$(codesign -dvv "$f" 2>&1)"
+            if ! grep -q '^Authority=SpaceSweeper Release' <<< "$info"; then
+              echo "::error::Not signed with the release certificate: ${f#$APP/}"; bad=1
+            fi
+            if grep -q 'flags=.*runtime' <<< "$info"; then
+              echo "::error::Hardened runtime is on (crashes with a self-signed certificate): ${f#$APP/}"; bad=1
+            fi
+          done < <(find "$APP" -type f -perm +111 -exec sh -c 'file -b "$1" | grep -q Mach-O' _ {} \; -print)
+          [ "$bad" = 0 ]
+          # A library that fails to load stops the app within a second; it must still be running after 8.
+          "$APP/Contents/MacOS/SpaceSweeper" > "$RUNNER_TEMP/launch.log" 2>&1 & PID=$!
+          sleep 8
+          if ! kill -0 "$PID" 2>/dev/null; then
+            cat "$RUNNER_TEMP/launch.log"; echo "::error::SpaceSweeper quit right after launch"; exit 1
+          fi
+          kill "$PID"; echo "✔ launches"
 
       - name: Package DMG
         run: |
