@@ -12,111 +12,87 @@
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
-    <a class="wordmark" href="./"><img src="assets/icon.png" alt="" width="36" height="36">SpaceSweeper</a>
+    <a class="wordmark" href="./"><img src="assets/icon.png" alt="" width="32" height="32">SpaceSweeper</a>
     <nav aria-label="Main">
       <a href="./#features">Features</a>
       <a href="./#questions">Questions</a>
-      <a class="keep" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download</a>
+      <a class="keep" href="install.html" aria-current="page">Install</a>
     </nav>
   </header>
 
-  <main id="main">
-    <section class="guide-hero" aria-labelledby="guide-title">
-      <h1 id="guide-title" class="reveal">Install in four steps</h1>
-      <p class="reveal">About five minutes, once. You need a Mac with macOS 14 Sonoma or later and your Mac's password for step 3.</p>
+  <main id="main" class="guide">
+    <section class="guide-intro" aria-labelledby="guide-title">
+      <h1 id="guide-title" class="reveal">Install SpaceSweeper</h1>
+      <p class="reveal">Four steps, about five minutes. You'll need macOS 14 Sonoma or later and your Mac's password.</p>
+      <div class="actions reveal">
+        <a class="button" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download for Mac</a>
+      </div>
     </section>
 
     <ol class="steps">
-      <li>
-        <div>
-          <span class="badge" aria-hidden="true"></span>
-          <h2 class="reveal">Download it</h2>
-          <p class="reveal">Click the button. Your browser saves <strong>SpaceSweeper.dmg</strong> to your Downloads folder.</p>
-          <p class="reveal" style="margin-top:24px"><a class="button" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download for Mac</a></p>
-        </div>
-        <div class="panel reveal">
-          <strong>Which Macs?</strong>
-          Any Mac with macOS 14 Sonoma or newer, Apple chip or Intel. Not sure? Click the Apple menu in the top-left corner and choose <em>About This Mac</em>.
-        </div>
+      <li class="reveal">
+        <h2>Download it</h2>
+        <p>Click <strong>Download for Mac</strong> above. <strong>SpaceSweeper.dmg</strong> is saved to your Downloads folder.</p>
       </li>
 
-      <li>
-        <div>
-          <span class="badge" aria-hidden="true"></span>
-          <h2 class="reveal">Drag it to Applications</h2>
-          <ol class="reveal">
-            <li>Open your <strong>Downloads</strong> folder and double-click <strong>SpaceSweeper.dmg</strong>.</li>
-            <li>A window opens with SpaceSweeper and an Applications folder.</li>
-            <li>Drag the SpaceSweeper icon onto the Applications folder.</li>
-            <li>Close the window. You can drag SpaceSweeper.dmg to the Trash.</li>
-          </ol>
-        </div>
-        <div class="panel reveal">
-          <strong>Opened it straight from the window?</strong>
-          That's fine: SpaceSweeper offers to move itself to Applications. Click <em>Move to Applications</em> so it remembers its permissions.
-        </div>
+      <li class="reveal">
+        <h2>Drag it to Applications</h2>
+        <ol>
+          <li>Double-click <strong>SpaceSweeper.dmg</strong> in Downloads.</li>
+          <li>In the window that opens, drag the SpaceSweeper icon onto the Applications folder.</li>
+          <li>Close the window. You can throw the .dmg file away.</li>
+        </ol>
+        <p class="note">If you open it straight from that window by mistake, SpaceSweeper offers to move itself. Click <strong>Move to Applications</strong>.</p>
       </li>
 
-      <li>
-        <div>
-          <span class="badge" aria-hidden="true"></span>
-          <h2 class="reveal">Open it the first time</h2>
-          <p class="reveal">SpaceSweeper is free and isn't part of Apple's paid developer program, so macOS asks you to confirm it once:</p>
-          <ol class="reveal">
-            <li>Open <strong>Applications</strong> and double-click <strong>SpaceSweeper</strong>.</li>
-            <li>macOS says it can't check the app. Click <strong>Done</strong> (or <strong>OK</strong>).</li>
-            <li>Open <strong>System Settings</strong> from the Apple menu, then click <strong>Privacy &amp; Security</strong> in the sidebar.</li>
-            <li>Scroll down to the message about SpaceSweeper and click <strong>Open Anyway</strong>.</li>
-            <li>Enter your Mac's password, then click <strong>Open Anyway</strong> once more.</li>
-          </ol>
-        </div>
-        <div class="panel reveal">
-          <strong>Only once</strong>
-          After this, SpaceSweeper opens like any other app, and updates install from inside the app without asking again. On macOS 14 you can also Control-click the app, choose <em>Open</em>, then <em>Open</em> again.
-        </div>
+      <li class="reveal">
+        <h2>Open it the first time</h2>
+        <p>macOS blocks apps from developers who aren't in Apple's paid program until you allow them. You only do this once.</p>
+        <ol>
+          <li>Double-click <strong>SpaceSweeper</strong> in Applications. When macOS says it can't check the app, click <strong>Done</strong>.</li>
+          <li>Open <strong>System Settings › Privacy &amp; Security</strong>.</li>
+          <li>Scroll down to the SpaceSweeper message and click <strong>Open Anyway</strong>.</li>
+          <li>Enter your password and click <strong>Open Anyway</strong> again.</li>
+        </ol>
+        <p class="note">On macOS 14 there's a shortcut: Control-click the app, choose <strong>Open</strong>, then <strong>Open</strong> again.</p>
       </li>
 
-      <li>
-        <div>
-          <span class="badge" aria-hidden="true"></span>
-          <h2 class="reveal">Allow Full Disk Access</h2>
-          <p class="reveal">SpaceSweeper shows this screen when it first opens. It needs access to measure folders macOS hides, like Mail and other apps' data.</p>
-          <ol class="reveal">
-            <li>Click <strong>Open System Settings</strong>.</li>
-            <li>Turn on the switch next to <strong>SpaceSweeper</strong> and enter your password.</li>
-            <li>If macOS asks, click <strong>Quit &amp; Reopen</strong>. Then click <strong>Start Scan</strong>.</li>
-          </ol>
-        </div>
-        <figure class="reveal">
-          <img src="assets/fda.png" width="1600" height="997" alt="SpaceSweeper's Full Disk Access screen with an Open System Settings button and three short steps." loading="lazy">
+      <li class="reveal">
+        <h2>Allow Full Disk Access</h2>
+        <p>SpaceSweeper shows this screen on first launch. Without access, macOS hides some folders and the totals come out low.</p>
+        <ol>
+          <li>Click <strong>Open System Settings</strong>.</li>
+          <li>Turn on <strong>SpaceSweeper</strong> and enter your password.</li>
+          <li>Click <strong>Quit &amp; Reopen</strong> if asked, then <strong>Start Scan</strong>.</li>
+        </ol>
+        <figure class="crop">
+          <img src="assets/fda-card.png" width="800" height="560" alt="SpaceSweeper's Full Disk Access screen with an Open System Settings button and three short steps." loading="lazy">
         </figure>
       </li>
     </ol>
 
-    <section class="after" aria-label="After installing">
-      <div>
-        <h2 class="reveal">Updates</h2>
-        <p class="reveal">SpaceSweeper checks for updates by itself and asks before installing. To check now, choose <em>SpaceSweeper › Check for Updates…</em> in the menu bar.</p>
-      </div>
-      <div>
-        <h2 class="reveal">Removing it</h2>
-        <p class="reveal">Quit SpaceSweeper and drag it from Applications to the Trash. Its saved scan is in <em>~/Library/Application Support/SpaceSweeper</em> if you want to remove that too.</p>
-      </div>
-      <div>
-        <h2 class="reveal">Stuck?</h2>
-        <p class="reveal">Ask whoever sent you this page, or <a href="https://github.com/MatthewFuchs/space-sweeper/issues">report a problem</a>. Inside the app, <em>Help</em> in the sidebar explains every rating.</p>
-      </div>
+    <section class="after" aria-labelledby="after-title">
+      <h2 id="after-title" class="reveal">After installing</h2>
+      <dl class="reveal">
+        <dt>Updates</dt>
+        <dd>SpaceSweeper checks by itself and asks before installing. To check now: <em>SpaceSweeper › Check for Updates…</em></dd>
+        <dt>Uninstalling</dt>
+        <dd>Drag it from Applications to the Trash. Its saved scan is in <em>~/Library/Application Support/SpaceSweeper</em>.</dd>
+        <dt>Problems</dt>
+        <dd><a href="https://github.com/MatthewFuchs/space-sweeper/issues">Report a problem</a> on GitHub, or open <em>Help</em> in the app's sidebar.</dd>
+      </dl>
     </section>
   </main>
 
   <footer class="site-footer">
+    <a class="wordmark" href="./"><img src="assets/icon.png" alt="" width="28" height="28">SpaceSweeper</a>
     <nav class="footer-links" aria-label="Footer">
-      <a href="./">Home</a>
+      <a href="install.html">Install guide</a>
       <a href="privacy.html">Privacy policy</a>
       <a href="https://github.com/MatthewFuchs/space-sweeper">Source code</a>
       <a href="https://github.com/MatthewFuchs/space-sweeper/issues">Report a problem</a>
     </nav>
-    <p class="fineprint">SpaceSweeper is free, and its source code is public on GitHub.</p>
+    <p class="fineprint">Free and open source. Screenshots show a sample Mac.</p>
   </footer>
 </body>
 </html>

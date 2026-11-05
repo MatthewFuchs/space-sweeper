@@ -11,173 +11,142 @@
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
-  <header class="site-header">
-    <a class="wordmark" href="./"><img src="assets/icon.png" alt="" width="36" height="36">SpaceSweeper</a>
-    <nav aria-label="Main">
-      <a href="#features">Features</a>
-      <a href="#questions">Questions</a>
-      <a class="keep" href="install.html">Install</a>
-    </nav>
-  </header>
 
   <main id="main">
+    <!-- Hero: a royal-blue field with the whole app window resting on it. -->
     <section class="hero" aria-labelledby="hero-title">
+      <header class="site-header">
+        <a class="wordmark" href="./"><img src="assets/icon.png" alt="" width="32" height="32">SpaceSweeper</a>
+        <nav aria-label="Main">
+          <a href="#features">Features</a>
+          <a href="#questions">Questions</a>
+          <a class="keep" href="install.html">Install</a>
+        </nav>
+      </header>
       <div class="hero-copy">
         <h1 id="hero-title" class="reveal">See what fills your&nbsp;Mac</h1>
-        <p class="lead reveal">SpaceSweeper finds the big stuff, tells you plainly what's safe to delete, and moves it to the Trash only when you say so.</p>
-        <div class="hero-actions reveal">
-          <a class="button" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download for Mac</a>
+        <p class="lead reveal">Find out what's using your disk space and clear it out, without deleting anything you still need.</p>
+        <div class="actions reveal">
+          <a class="button light" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download for Mac</a>
           <a class="text-link" href="install.html">How to install</a>
         </div>
-        <p class="hero-meta reveal">Free · macOS 14 Sonoma or later · Apple Silicon and Intel</p>
-        <div class="map-readout reveal" data-readout aria-live="polite">
-          <p><strong>Caches: </strong><span class="rating" data-level="safe">Safe</span></p>
-          <p>~/Library/Caches and browser caches.</p>
-          <p>If you delete it: Apps rebuild them; they may be slower once.</p>
-        </div>
-        <p class="map-hint">Tap a tile in the map to see how SpaceSweeper rates it.</p>
+        <p class="meta reveal">Free · macOS 14 Sonoma or later · Apple Silicon and Intel</p>
       </div>
-      <div class="space-map" data-space-map role="group" aria-label="Sample space map of a Mac">
-        <noscript><p>The interactive space map needs JavaScript.</p></noscript>
-      </div>
-    </section>
-
-    <section class="showcase" aria-labelledby="showcase-title">
-      <div class="copy">
-        <h2 id="showcase-title" class="reveal">Know before you delete</h2>
-        <p class="reveal">Every large file gets a rating (Safe, Review, Careful or Protected) and one plain sentence about what happens if it goes. Your photos and settings are never mistaken for junk.</p>
-      </div>
-      <figure class="shutter">
-        <img src="assets/largeFiles.png" width="1600" height="997" alt="SpaceSweeper's Large Files list: videos rated Review, old installers rated Safe, an app's recording rated Careful, with a button to select the 4.96 GB that is safe to delete.">
+      <figure class="window hero-window reveal">
+        <img src="assets/overview.png" width="1600" height="997" alt="SpaceSweeper's Overview: 214.95 GB free, a Free up 5.91 GB safely button, and a list of the biggest safe wins.">
       </figure>
     </section>
 
-    <section class="board-section" id="features" aria-labelledby="features-title">
-      <div class="board">
-        <div class="heading-tile">
-          <h2 id="features-title" class="reveal">Everything in its&nbsp;place</h2>
-          <p class="reveal" style="margin-top:16px;max-width:30em">Six views, one rule: you see what something is before you decide.</p>
-        </div>
-        <div class="note wide reveal">
-          <strong>Trash first, always</strong>
-          <span>Nothing is removed until you review it. Items go to the Trash so you can put them back, and macOS, iCloud, Mail and Photos are locked.</span>
-        </div>
-        <figure class="shot reveal" style="margin:0">
-          <img src="assets/overview.png" width="1600" height="997" alt="The Overview: free space, the biggest safe wins and a Free up button." loading="lazy">
-          <figcaption class="caption"><strong>Overview</strong><span>Free space and the biggest safe wins, at a glance.</span></figcaption>
-        </figure>
-        <figure class="shot reveal" style="margin:0">
-          <img src="assets/folders.png" width="1600" height="997" alt="The space map: rectangles sized by how much space each folder takes." loading="lazy">
-          <figcaption class="caption"><strong>Space map</strong><span>Bigger tile, more space. Double-click to look inside.</span></figcaption>
-        </figure>
-        <div class="note tall reveal">
-          <strong>Uninstall properly</strong>
-          <span>Removes an app and the files it leaves behind: caches, settings, helpers.</span>
-        </div>
-        <div class="note reveal">
-          <strong>Security Check</strong>
-          <span>Flags startup items and downloads that look unusual.</span>
-        </div>
-        <figure class="shot focus-mid reveal" style="margin:0">
-          <img src="assets/devJunk.png" width="1600" height="997" alt="Developer Junk: caches and build folders grouped, each with a Safe rating and size." loading="lazy">
-          <figcaption class="caption"><strong>Caches and leftovers</strong><span>Things apps rebuild by themselves, grouped and sized.</span></figcaption>
-        </figure>
-        <div class="note reveal">
-          <strong>Private</strong>
-          <span>Works offline. Reads names and sizes, never your files' contents.</span>
-        </div>
-      </div>
-    </section>
-
-    <section class="stages" aria-labelledby="stage-title">
-      <div class="clause-field">
-        <div>
-          <h2 id="stage-title" data-stage-clause>Scan your Mac in seconds</h2>
-          <p data-stage-detail>SpaceSweeper measures your home folder. It reads names, sizes and dates, never what's inside your files.</p>
-        </div>
-        <div class="stage-control" data-stages>
-          <label for="stage-slider" class="skip">How SpaceSweeper works</label>
-          <input id="stage-slider" type="range" min="0" max="3" step="1" value="0" aria-valuetext="Scan">
-          <div class="stage-names" aria-hidden="true"><span aria-current="step">Scan</span><span>Rate</span><span>Review</span><span>Trash</span></div>
-        </div>
-        <ul hidden>
-          <li data-stage data-clause="Scan your Mac in seconds" data-image="assets/folders.png" data-alt="The space map after a scan.">SpaceSweeper measures your home folder. It reads names, sizes and dates, never what's inside your files.</li>
-          <li data-stage data-clause="Every file gets a rating" data-image="assets/largeFiles.png" data-alt="Large files with Safe, Review and Careful ratings.">Safe means it comes back by itself. Review means it's yours, so check first. Careful means an app needs it.</li>
-          <li data-stage data-clause="You choose what goes" data-image="assets/devJunk.png" data-alt="A list of caches with checkboxes and sizes.">Tick what you want gone, or press Select Safe Items. A review screen lists everything before anything moves.</li>
-          <li data-stage data-clause="It goes to the Trash" data-image="assets/overview.png" data-alt="The Overview with free space and the Trash.">Changed your mind? Put it back from the Trash. Empty the Trash when you're sure, and the space is yours.</li>
+    <!-- Features: one claim per row, the full window beside it. -->
+    <section class="feature" id="features" aria-labelledby="f1">
+      <div class="text">
+        <h2 id="f1" class="reveal">Know before you delete</h2>
+        <p class="reveal">Each file is labelled with what it is and what you'd lose by deleting it.</p>
+        <ul class="ratings reveal">
+          <li><span class="dot safe"></span><strong>Safe</strong> Caches and old installers. Nothing is lost.</li>
+          <li><span class="dot review"></span><strong>Review</strong> Your own videos, photos and documents.</li>
+          <li><span class="dot careful"></span><strong>Careful</strong> App data. Deleting it resets the app.</li>
+          <li><span class="dot protected"></span><strong>Protected</strong> macOS, iCloud, Mail and Photos. Locked.</li>
         </ul>
       </div>
-      <div class="picture-field">
-        <img data-stage-picture src="assets/folders.png" width="1600" height="997" alt="The space map after a scan." loading="lazy">
+      <figure class="window reveal">
+        <img src="assets/largeFiles.png" width="1600" height="997" alt="The Large Files list: videos rated Review, old installers rated Safe, an app's recording rated Careful, and a button to select the 4.96 GB that is safe to delete." loading="lazy">
+      </figure>
+    </section>
+
+    <section class="feature flip" aria-labelledby="f2">
+      <div class="text">
+        <h2 id="f2" class="reveal">Spot the big folders</h2>
+        <p class="reveal">Folders are drawn to scale. Double-click one to open it.</p>
+      </div>
+      <figure class="window reveal">
+        <img src="assets/folders.png" width="1600" height="997" alt="The space map: blue rectangles sized by how much space Movies, Downloads, Library and other folders take." loading="lazy">
+      </figure>
+    </section>
+
+    <section class="feature" aria-labelledby="f3">
+      <div class="text">
+        <h2 id="f3" class="reveal">Clear out caches</h2>
+        <p class="reveal">Select Safe Items ticks everything that's safe to remove. You see the list before anything is moved to the Trash.</p>
+      </div>
+      <figure class="window reveal">
+        <img src="assets/devJunk.png" width="1600" height="997" alt="Caches and leftovers grouped by kind, each rated Safe, with 5.91 GB safe to delete." loading="lazy">
+      </figure>
+    </section>
+
+    <!-- Promises: plain text in columns, no boxes. -->
+    <section class="promises" aria-labelledby="promises-title">
+      <h2 id="promises-title" class="reveal">Also included</h2>
+      <div class="columns">
+        <div class="reveal">
+          <h3>Old files</h3>
+          <p>Files you haven't opened in a long time, largest first.</p>
+        </div>
+        <div class="reveal">
+          <h3>Uninstaller</h3>
+          <p>Removes an app along with the settings and caches it leaves in your Library.</p>
+        </div>
+        <div class="reveal">
+          <h3>Security Check</h3>
+          <p>Lists what launches when your Mac starts and flags anything unsigned.</p>
+        </div>
+        <div class="reveal">
+          <h3>No account</h3>
+          <p>No sign-up or tracking. It reads file names and sizes, not their contents.</p>
+        </div>
       </div>
     </section>
 
     <section class="faq" id="questions" aria-labelledby="faq-title">
       <h2 id="faq-title" class="reveal">Questions</h2>
-      <div class="cards">
-        <details open class="reveal">
-          <summary><span class="topic">Safety</span>Could I delete something important by accident?</summary>
-          <p>SpaceSweeper locks macOS, your passwords, iCloud Drive, Mail and the Photos library. Everything else shows a rating first, and removed items go to the Trash, so you can put them back.</p>
+      <div class="qa">
+        <details class="reveal" open>
+          <summary>Could I delete something important by accident?</summary>
+          <p>Unlikely. macOS, your passwords, iCloud Drive, Mail and Photos can't be deleted from SpaceSweeper, and everything else goes to the Trash first, so you can put it back.</p>
         </details>
         <details class="reveal">
-          <summary><span class="topic">Opening</span>Why does my Mac warn me the first time?</summary>
-          <p>SpaceSweeper is free and isn't part of Apple's paid developer program, so macOS asks you to confirm once. The <a href="install.html">install guide</a> shows exactly where to click. Updates don't ask again.</p>
+          <summary>Why does my Mac warn me the first time?</summary>
+          <p>macOS warns about apps that aren't registered with Apple's paid developer program. You confirm once; the <a href="install.html">install guide</a> shows where. Updates don't trigger it again.</p>
         </details>
         <details class="reveal">
-          <summary><span class="topic">Permission</span>Why does it ask for Full Disk Access?</summary>
-          <p>macOS hides some folders (Mail, other apps' data, the Trash) until you allow it. With access, totals are complete. Without it, SpaceSweeper still works and lists what it couldn't see.</p>
+          <summary>Why does it ask for Full Disk Access?</summary>
+          <p>Without it, macOS hides some folders, such as Mail and other apps' data, and the totals come out low. SpaceSweeper still works without it.</p>
         </details>
         <details class="reveal">
-          <summary><span class="topic">Space</span>I deleted files but free space didn't change.</summary>
-          <p>Files in the Trash still use space until you empty it. macOS also keeps some space "purgeable" and frees it on its own when needed; SpaceSweeper's Overview explains how much.</p>
+          <summary>I deleted files but free space didn't change.</summary>
+          <p>Empty the Trash. If it still looks off, macOS may be holding the space as "purgeable" and will free it when it needs to.</p>
         </details>
         <details class="reveal">
-          <summary><span class="topic">Privacy</span>Does it send my data anywhere?</summary>
-          <p>No. There are no accounts, ads or tracking, and it works offline. The only connection is an optional check for updates. Read the <a href="privacy.html">privacy policy</a>.</p>
+          <summary>Does it send my data anywhere?</summary>
+          <p>No. The only time it goes online is to check for updates, which you can turn off. See the <a href="privacy.html">privacy policy</a>.</p>
         </details>
         <details class="reveal">
-          <summary><span class="topic">Macs</span>Will it work on my Mac?</summary>
-          <p>Any Mac running macOS 14 Sonoma or later, with an Apple chip or an Intel processor. To check: Apple menu › About This Mac.</p>
+          <summary>Will it work on my Mac?</summary>
+          <p>If it runs macOS 14 Sonoma or later, yes, on Apple and Intel Macs alike. Check under Apple menu › About This Mac.</p>
         </details>
       </div>
     </section>
 
-    <section class="cta-row" aria-labelledby="cta-title">
-      <div class="flank-pic"></div>
-      <div class="action-tile">
-        <h2 id="cta-title" style="font-size:clamp(32px,3vw,48px)">Free for your Mac</h2>
-        <p>One download, about 4 MB. Open it, drag SpaceSweeper to Applications, and it walks you through the rest.</p>
-        <div class="actions">
-          <a class="button on-dark" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download for Mac</a>
-          <a class="text-link" href="install.html">Step-by-step install guide</a>
-        </div>
+    <section class="cta" aria-labelledby="cta-title">
+      <img class="cta-icon reveal" src="assets/icon.png" alt="" width="96" height="96">
+      <h2 id="cta-title" class="reveal">Download SpaceSweeper</h2>
+      <p class="reveal">Free, for macOS 14 or later.</p>
+      <div class="actions reveal">
+        <a class="button light" href="https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg">Download for Mac</a>
+        <a class="text-link" href="install.html">Install guide</a>
       </div>
-      <div class="flank-field"></div>
     </section>
   </main>
 
   <footer class="site-footer">
-    <div class="block-mark" aria-label="SpaceSweeper">
-      <span aria-hidden="true" style="background:var(--tile-1);height:100%">S</span>
-      <span aria-hidden="true" style="background:var(--tile-3);height:78%">p</span>
-      <span aria-hidden="true" style="background:var(--tile-2);height:90%">a</span>
-      <span aria-hidden="true" style="background:var(--tile-4);height:64%">c</span>
-      <span aria-hidden="true" style="background:var(--tile-5);height:86%">e</span>
-      <span aria-hidden="true" style="background:var(--tile-3);height:100%">S</span>
-      <span aria-hidden="true" style="background:var(--tile-1);height:72%">w</span>
-      <span aria-hidden="true" style="background:var(--tile-2);height:92%">e</span>
-      <span aria-hidden="true" style="background:var(--tile-4);height:68%">e</span>
-      <span aria-hidden="true" style="background:var(--tile-5);height:96%">p</span>
-      <span aria-hidden="true" style="background:var(--tile-3);height:80%">e</span>
-      <span aria-hidden="true" style="background:var(--tile-1);height:70%">r</span>
-    </div>
+    <a class="wordmark" href="./"><img src="assets/icon.png" alt="" width="28" height="28">SpaceSweeper</a>
     <nav class="footer-links" aria-label="Footer">
       <a href="install.html">Install guide</a>
       <a href="privacy.html">Privacy policy</a>
       <a href="https://github.com/MatthewFuchs/space-sweeper">Source code</a>
       <a href="https://github.com/MatthewFuchs/space-sweeper/issues">Report a problem</a>
     </nav>
-    <p class="fineprint">SpaceSweeper is free, and its source code is public on GitHub. Screenshots show a sample Mac.</p>
+    <p class="fineprint">Free and open source. Screenshots show a sample Mac.</p>
   </footer>
 </body>
 </html>
