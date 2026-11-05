@@ -77,7 +77,14 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 3600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          # Tolerate whitespace/newlines from pasting, then check the file and password before importing.
+          printf '%s' "$P12" | tr -d ' \n\r\t' | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          echo "certificate file: $(wc -c < "$RUNNER_TEMP/cert.p12") bytes, sha256 $(shasum -a 256 "$RUNNER_TEMP/cert.p12" | cut -c1-16)"
+          if ! openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin env:P12_PASSWORD -noout -legacy 2>/dev/null \
+             && ! openssl pkcs12 -in "$RUNNER_TEMP/cert.p12" -passin env:P12_PASSWORD -noout 2>/dev/null; then
+            echo "::error::SIGNING_CERT_P12 or SIGNING_CERT_PASSWORD is wrong. Re-copy both (docs/RELEASING.md) and re-run."
+            exit 1
+          fi
           security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
           rm "$RUNNER_TEMP/cert.p12"
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null

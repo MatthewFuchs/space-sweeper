@@ -87,7 +87,7 @@ function buildMap() {
     const tile = document.createElement("button");
     tile.type = "button";
     tile.className = "tile";
-    tile.style.background = kind.level === "protected" ? "var(--protected)" : TILE_COLOURS[i % TILE_COLOURS.length];
+    tile.style.background = kind.level === "protected" ? "#4a5578" : TILE_COLOURS[i % TILE_COLOURS.length];
     tile.setAttribute("aria-label", `${kind.name}, ${kind.size} gigabytes, rated ${kind.rating}`);
     tile.innerHTML = `<span class="name"></span><span class="size"></span>`;
     tile.querySelector(".name").textContent = kind.name;
