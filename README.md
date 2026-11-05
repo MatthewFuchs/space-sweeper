@@ -6,6 +6,8 @@
 
 **A native macOS app that finds what's using your disk, tells you plainly whether each item is safe to delete, and removes it safely.**
 
+**[Website](https://matthewfuchs.github.io/space-sweeper/) · [Download](https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg) · [Install guide](https://matthewfuchs.github.io/space-sweeper/install.html)**
+
 SpaceSweeper scans your Mac, rates every large file, folder and cache **Safe**, **Review**, **Careful** or **Protected**, explains what happens if you delete it, and moves what you choose to the Trash, always after a review step. It works offline and never reads the contents of your files.
 
 ## Features
@@ -21,7 +23,7 @@ SpaceSweeper scans your Mac, rates every large file, folder and cache **Safe**, 
 
 ## Requirements
 
-- A Mac with Apple Silicon running macOS 14 Sonoma or later
+- A Mac (Apple Silicon or Intel) running macOS 14 Sonoma or later
 - Xcode 16 or later to build (developed with Xcode 26)
 
 ## Build and run
@@ -92,6 +94,7 @@ SpaceSweeper/
   Views/      SwiftUI views
 SpaceSweeperTests/   Unit tests (temporary-folder fixtures only; they never touch real files)
 scripts/ci.sh        Single build/test entry point
+website/             The website (GitHub Pages)
 docs/                Maintainer docs
 ```
 
@@ -107,4 +110,4 @@ Issues and pull requests are welcome.
 
 ## Releasing
 
-Signing, notarization and automatic updates are covered in [docs/RELEASING.md](docs/RELEASING.md).
+Releases, signing, automatic updates and the website are covered in [docs/RELEASING.md](docs/RELEASING.md).

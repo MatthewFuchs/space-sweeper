@@ -50,8 +50,11 @@ enum PathUtil {
         return kept
     }
 
+    /// Home folder used when abbreviating paths for display (the debug demo points it at its sample folder).
+    static var displayHome = NSHomeDirectory()
+
     /// Replaces the home folder prefix with "~" for display.
-    static func abbreviate(_ path: String, home: String = NSHomeDirectory()) -> String {
+    static func abbreviate(_ path: String, home: String = PathUtil.displayHome) -> String {
         isSameOrDescendant(path, of: home) ? "~" + path.dropFirst(home.count) : path
     }
 }

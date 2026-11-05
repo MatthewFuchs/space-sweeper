@@ -11,6 +11,19 @@ enum JunkGroup: String, CaseIterable, Sendable {
     case androidAndVMs = "Android & Virtual Machines"
     case installers = "Installers & Archives in Downloads"
 
+    /// What one item of this group is, in a few words ("Downloaded installer").
+    var itemDescription: String {
+        switch self {
+        case .xcode: return "Xcode data"
+        case .projects: return "Build output"
+        case .packageCaches: return "Package cache"
+        case .appCaches: return "App cache"
+        case .docker: return "Docker data"
+        case .androidAndVMs: return "Emulator or installer image"
+        case .installers: return "Downloaded installer"
+        }
+    }
+
     var symbol: String {
         switch self {
         case .xcode: return "hammer"

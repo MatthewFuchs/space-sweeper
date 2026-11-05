@@ -16,7 +16,13 @@ enum DebugLaunch {
 
     static func run(state: AppState, openSettings: @escaping () -> Void) {
         let env = ProcessInfo.processInfo.environment
-        guard let action = env["SPACESWEEPER_DEBUG_OPEN"] else { return }
+        // SPACESWEEPER_DEMO_ROOT=<folder>: scan a demo folder for screenshots; nothing is saved.
+        if let demoRoot = env["SPACESWEEPER_DEMO_ROOT"], !demoRoot.isEmpty {
+            state.isDemo = true
+            state.useDemoHome(demoRoot)
+            state.startScan(roots: [demoRoot])
+        }
+        guard let action = env["SPACESWEEPER_DEBUG_OPEN"], !action.isEmpty else { return }
         let confirm = env["SPACESWEEPER_DEBUG_CONFIRM"] == "1"
         Task {
             try? await Task.sleep(nanoseconds: 2_500_000_000)

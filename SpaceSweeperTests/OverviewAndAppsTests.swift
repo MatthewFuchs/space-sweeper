@@ -250,3 +250,29 @@ final class AccessibilityTests: XCTestCase {
         }
     }
 }
+
+/// Where the app runs from decides whether it offers to move itself to Applications.
+final class InstallLocationTests: XCTestCase {
+    private let home = "/Users/tester"
+
+    func testDownloadedCopiesShouldMove() {
+        XCTAssertTrue(InstallLocation.needsMove(bundlePath: "/Users/tester/Downloads/SpaceSweeper.app", home: home))
+        XCTAssertTrue(InstallLocation.needsMove(bundlePath: "/Volumes/SpaceSweeper/SpaceSweeper.app", home: home), "running from the disk image")
+        XCTAssertTrue(InstallLocation.needsMove(bundlePath: "/private/var/folders/x/T/AppTranslocation/ABC/d/SpaceSweeper.app", home: home))
+        XCTAssertFalse(InstallLocation.needsMove(bundlePath: "/Users/tester/Documents/space-sweeper/build/SpaceSweeper.app", home: home),
+                       "a developer's own build in Documents isn't offered a move")
+    }
+
+    func testInstalledAndDeveloperCopiesStay() {
+        XCTAssertFalse(InstallLocation.needsMove(bundlePath: "/Applications/SpaceSweeper.app", home: home))
+        XCTAssertFalse(InstallLocation.needsMove(bundlePath: "/Users/tester/Applications/SpaceSweeper.app", home: home))
+        XCTAssertFalse(InstallLocation.needsMove(bundlePath: "/Users/tester/Library/Developer/Xcode/DerivedData/x/SpaceSweeper.app", home: home),
+                       "Xcode builds aren't nagged")
+        XCTAssertFalse(InstallLocation.needsMove(bundlePath: "/Users/tester/code/space-sweeper/build/DerivedData/Build/Products/Debug/SpaceSweeper.app",
+                                                 home: home))
+    }
+
+    func testDestinationIsApplications() {
+        XCTAssertEqual(InstallLocation.destination(for: "/Volumes/SpaceSweeper/SpaceSweeper.app"), "/Applications/SpaceSweeper.app")
+    }
+}

@@ -115,9 +115,11 @@ struct SafetyAdvisor: Sendable {
     private func baseAssessment(path: String, isPackage: Bool) -> SafetyAssessment {
         if let junk = junkItems.first(where: { PathUtil.isSameOrDescendant(path, of: $0.path) }) {
             let inside = junk.path != path
+            // Items titled by their own file name (installers, VM images) get a description instead of a repeat.
+            let title = junk.title == (junk.path as NSString).lastPathComponent ? junk.group.itemDescription : junk.title
             return SafetyAssessment(
                 level: junk.isDeletable ? junk.safety : .protected,
-                whatItIs: inside ? "Inside \(junk.title)" : junk.title,
+                whatItIs: inside ? "Inside \(junk.title)" : title,
                 ifDeleted: junk.explanation)
         }
 

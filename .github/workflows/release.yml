@@ -1,0 +1,133 @@
+name: Release
+
+# Push a tag like v1.0.0 to publish a release:
+#   git tag v1.0.0 && git push origin v1.0.0
+# Builds a universal app, signs it with the self-signed "SpaceSweeper Release" certificate (so Full Disk Access
+# survives updates), packages a DMG, signs the update feed with Sparkle, creates the GitHub Release, and
+# redeploys the website with the new appcast.xml. See docs/RELEASING.md for the one-time setup.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to release (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, sign and publish
+    runs-on: macos-15
+    timeout-minutes: 40
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      APP: build/DerivedData/Build/Products/Release/SpaceSweeper.app
+      SPARKLE_BIN: build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Check secrets are configured
+        env:
+          P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SPARKLE: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [[ -z "$P12" || -z "$SPARKLE" ]]; then
+            echo "::error::Release secrets are missing. Follow docs/RELEASING.md › One-time setup."
+            exit 1
+          fi
+
+      - name: Select newest Xcode
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode*.app | sort -V | tail -1)"
+
+      - name: Version from tag
+        run: |
+          VERSION="${TAG#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILD_NUMBER=${{ github.run_number }}" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: scripts/ci.sh test
+
+      - name: Build universal app
+        run: |
+          xcodebuild -project SpaceSweeper.xcodeproj -scheme SpaceSweeper -configuration Release \
+            -destination 'generic/platform=macOS' -derivedDataPath build/DerivedData \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" build
+          lipo -archs "$APP/Contents/MacOS/SpaceSweeper"
+
+      - name: Import signing certificate into a temporary keychain
+        env:
+          P12: ${{ secrets.SIGNING_CERT_P12 }}
+          P12_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/release.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          echo "KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          # codesign finds self-signed identities only in keychains on the search list.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+      - name: Sign with the SpaceSweeper Release certificate
+        run: |
+          codesign --force --deep --options runtime --timestamp=none -s "SpaceSweeper Release" "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -d -r- "$APP"
+
+      - name: Package DMG
+        run: |
+          mkdir -p release
+          scripts/make-dmg.sh "$APP" release/SpaceSweeper.dmg
+          codesign --force --timestamp=none -s "SpaceSweeper Release" release/SpaceSweeper.dmg
+
+      - name: Sign update feed (Sparkle)
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          echo "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_BIN/generate_appcast" --ed-key-file - \
+            --download-url-prefix "https://github.com/${{ github.repository }}/releases/download/$TAG/" \
+            --link "https://matthewfuchs.github.io/space-sweeper/" \
+            -o release/appcast.xml release/
+          grep -q "sparkle:edSignature" release/appcast.xml
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > release/notes.md <<EOF
+          **Download:** [SpaceSweeper.dmg](https://github.com/${{ github.repository }}/releases/download/$TAG/SpaceSweeper.dmg) · macOS 14 or later · Apple Silicon and Intel
+
+          New to SpaceSweeper? Follow the [install guide](https://matthewfuchs.github.io/space-sweeper/install.html). The first time you open it, macOS asks you to confirm in *System Settings › Privacy & Security › Open Anyway*. Already installed? Use *SpaceSweeper › Check for Updates…*.
+          EOF
+          gh release create "$TAG" release/SpaceSweeper.dmg release/appcast.xml \
+            --title "SpaceSweeper $VERSION" --notes-file release/notes.md --verify-tag
+
+      - name: Remove temporary keychain
+        if: always()
+        run: |
+          if [[ -n "${KEYCHAIN:-}" ]]; then security delete-keychain "$KEYCHAIN" || true; fi
+
+  website:
+    name: Update website and update feed
+    needs: release
+    uses: ./.github/workflows/pages.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
