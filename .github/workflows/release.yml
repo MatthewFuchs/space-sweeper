@@ -32,7 +32,7 @@ jobs:
       APP: build/DerivedData/Build/Products/Release/SpaceSweeper.app
       SPARKLE_BIN: build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ env.TAG }}
 
@@ -152,11 +152,16 @@ jobs:
         run: |
           if [[ -n "${KEYCHAIN:-}" ]]; then security delete-keychain "$KEYCHAIN" || true; fi
 
+  # The github-pages environment only accepts deployments from main, not from a tag, so ask the
+  # Website workflow to run on main. It publishes the new appcast.xml (the update feed) with the site.
   website:
     name: Update website and update feed
     needs: release
-    uses: ./.github/workflows/pages.yml
+    runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pages: write
-      id-token: write
+      actions: write
+    steps:
+      - name: Start the Website workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "${{ github.repository }}" --ref main

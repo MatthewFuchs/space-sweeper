@@ -11,8 +11,7 @@ on:
       - "PRIVACY.md"
       - "scripts/build-site.py"
       - ".github/workflows/pages.yml"
-  workflow_dispatch:
-  workflow_call:
+  workflow_dispatch: # also started by the Release workflow after each release
 
 permissions:
   contents: read
@@ -31,7 +30,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build site
         run: python3 scripts/build-site.py --out _site
