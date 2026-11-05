@@ -1,32 +1,56 @@
 # Releasing SpaceSweeper
 
-This is for maintainers publishing signed builds. Building and running locally needs none of it; see the [README](../README.md).
+For maintainers. Building and running locally needs none of this; see the [README](../README.md).
 
-## 1. Signing and notarization
+Releases are **free**: no Apple Developer account. They're signed with a self-signed certificate ("SpaceSweeper Release"), so macOS keeps Full Disk Access across updates, and updates are signed with a Sparkle key. People installing for the first time confirm the app once via *System Settings › Privacy & Security › Open Anyway*; the [install guide](https://matthewfuchs.github.io/space-sweeper/install.html) walks them through it.
 
-SpaceSweeper reads the whole disk, so it can't be sandboxed and isn't distributed through the Mac App Store. Release builds need:
+## One-time setup
 
-1. A **Developer ID Application** certificate (Apple Developer Program).
-2. Set your team under *Signing & Capabilities* (Debug builds use ad-hoc signing and need nothing).
-3. Archive the Release configuration (*Product › Archive*), export with *Developer ID*, and notarize:
+1. **Create the keys** (already done once; re-running refuses to overwrite):
 
    ```sh
-   xcrun notarytool submit SpaceSweeper.zip --keychain-profile <profile> --wait
-   xcrun stapler staple SpaceSweeper.app
+   scripts/ci.sh build              # downloads Sparkle's tools
+   scripts/setup-release-keys.sh    # writes ~/SpaceSweeper-release-keys (never commit it)
    ```
 
-Hardened Runtime is already enabled.
+   It prints the Sparkle public key, which is already set as `SPARKLE_PUBLIC_KEY` in the app's Release build settings. **Back up `~/SpaceSweeper-release-keys`** somewhere safe. Losing it means installed copies stop receiving updates and Full Disk Access must be granted again.
 
-## 2. Automatic updates (Sparkle)
+2. **Add three repository secrets** (GitHub › Settings › Secrets and variables › Actions › New repository secret). Each command copies the value; paste it as the secret:
 
-Updates use [Sparkle 2](https://sparkle-project.org). They stay **off** until a build has a feed URL and a signing key; until then *Check for Updates…* is disabled and Settings says updates aren't set up.
+   | Secret | Copy the value with |
+   |---|---|
+   | `SIGNING_CERT_P12` | `base64 -i ~/SpaceSweeper-release-keys/SpaceSweeper-Release.p12 \| pbcopy` |
+   | `SIGNING_CERT_PASSWORD` | `pbcopy < ~/SpaceSweeper-release-keys/p12-password.txt` |
+   | `SPARKLE_PRIVATE_KEY` | `pbcopy < ~/SpaceSweeper-release-keys/sparkle-private-key.txt` |
 
-1. **Create a signing key (once).** Run Sparkle's `generate_keys`. After the first build it's in `build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/`. It stores the private key in your login Keychain and prints the public key. Back the private key up (`generate_keys -x private-key.txt`) somewhere safe: losing it means existing users can't receive updates. Never commit it.
-2. **Configure the build.** In the SpaceSweeper target's build settings, set `SPARKLE_PUBLIC_KEY` to the printed public key and `SPARKLE_FEED_URL` to the HTTPS address where `appcast.xml` will be hosted (for example GitHub Pages).
-3. **For each release:** bump `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`, archive, sign, notarize, then zip or DMG the app. Run `generate_appcast <folder-with-releases>` (it signs the archives and writes `appcast.xml`) and upload both to the feed location.
+3. **Turn on the website:** GitHub › Settings › Pages › Build and deployment › Source: **GitHub Actions**.
 
-Users get an update prompt on their next automatic check (daily by default), or via *SpaceSweeper › Check for Updates…*.
+## Publishing a release
 
-## 3. CI artifacts
+```sh
+git tag v1.0.0 && git push origin v1.0.0
+```
 
-Every push to `main` runs [CI](../.github/workflows/ci.yml): build, tests, and an unsigned Release `.app` uploaded as a workflow artifact. That artifact is ad-hoc signed and not notarized, so it's only for testing.
+The [Release workflow](../.github/workflows/release.yml) then:
+1. runs the tests
+2. builds a universal app (Apple Silicon and Intel)
+3. signs it with the certificate
+4. packages `SpaceSweeper.dmg`
+5. signs the update feed (`appcast.xml`)
+6. creates the GitHub Release
+7. redeploys the website with the new feed
+
+The download button on the site always points at the latest release:
+`https://github.com/MatthewFuchs/space-sweeper/releases/latest/download/SpaceSweeper.dmg`.
+
+Version numbers come from the tag (`v1.2.0` → 1.2.0); the build number is the workflow run number.
+
+## Website
+
+`website/` is plain HTML and CSS. The [Website workflow](../.github/workflows/pages.yml) publishes it to GitHub Pages whenever `website/` or `PRIVACY.md` changes. `privacy.html` is generated from `PRIVACY.md` by `scripts/build-site.py`. Preview locally with `python3 scripts/build-site.py --out build/site && open build/site/index.html`.
+
+Screenshots in `website/assets/` come from a sample Mac, never a real one. Debug builds can scan a demo folder with `SPACESWEEPER_DEMO_ROOT=/path/to/demo` (see `SpaceSweeper/App/DebugLaunch.swift`).
+
+## Later: Apple Developer account
+
+With a paid account, replace the certificate step in `release.yml` with a Developer ID identity, add `--timestamp`, and notarize (`xcrun notarytool submit … --wait`, then `xcrun stapler staple`). Users then see no warning at all. The update feed and website don't change, but everyone grants Full Disk Access once more, because the signing identity changes.

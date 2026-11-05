@@ -31,6 +31,8 @@ struct SpaceSweeperApp: App {
             CommandGroup(replacing: .help) {
                 Button("SpaceSweeper Help") { state.selectedSection = .help }
                     .keyboardShortcut("?", modifiers: [.command])
+                Button("SpaceSweeper Website") { NSWorkspace.shared.open(AppLinks.website) }
+                Button("Install & Setup Guide") { NSWorkspace.shared.open(AppLinks.installGuide) }
             }
         }
 
@@ -46,6 +48,8 @@ struct RootView: View {
     @Environment(AppState.self) private var state
     @AppStorage(AppSettings.Key.appearance) private var appearance = AppearanceMode.system.rawValue
     @Environment(\.openSettings) private var openSettings
+    @State private var offerMove = false
+    @AppStorage(InstallLocation.declinedKey) private var moveDeclined = false
 
     var body: some View {
         Group {
@@ -56,7 +60,9 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(AppearanceMode(rawValue: appearance)?.colorScheme)
+        .sheet(isPresented: $offerMove) { MoveToApplicationsView() }
         .onAppear {
+            offerMove = !moveDeclined && InstallLocation.needsMove(bundlePath: Bundle.main.bundlePath)
             #if DEBUG
             DebugLaunch.run(state: state, openSettings: { openSettings() })
             #endif
@@ -64,6 +70,66 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             state.refreshFullDiskAccess()
             state.refreshDisk()
+        }
+    }
+}
+
+
+/// Public web addresses used in menus and Help.
+enum AppLinks {
+    static let website = URL(string: "https://matthewfuchs.github.io/space-sweeper/")!
+    static let installGuide = URL(string: "https://matthewfuchs.github.io/space-sweeper/install.html")!
+}
+
+/// First-launch offer to move a downloaded copy into Applications, so Full Disk Access sticks.
+struct MoveToApplicationsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(InstallLocation.declinedKey) private var moveDeclined = false
+    @State private var isMoving = false
+    @State private var error: String?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.down.app.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(Theme.accent)
+                .accessibilityHidden(true)
+            Text("Move SpaceSweeper to Applications?").font(.title2.weight(.semibold))
+            Text("SpaceSweeper is running from your Downloads or the disk image. Moving it to the Applications folder lets macOS remember its permissions, so you only set them up once.")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let error {
+                Text(error).foregroundStyle(.red).font(.callout).multilineTextAlignment(.center)
+            }
+            HStack {
+                Button("Not Now") {
+                    moveDeclined = true
+                    dismiss()
+                }
+                Spacer()
+                if isMoving { ProgressView().controlSize(.small) }
+                Button("Move to Applications", action: move)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(isMoving)
+            }
+        }
+        .padding(28)
+        .frame(width: 440)
+    }
+
+    private func move() {
+        isMoving = true
+        let source = Bundle.main.bundlePath
+        Task {
+            do {
+                let target = try await Task.detached { try InstallLocation.copyToApplications(from: source) }.value
+                InstallLocation.relaunch(from: target, removing: source)
+            } catch {
+                self.error = "Couldn't move it: \(error.localizedDescription). You can drag SpaceSweeper into Applications in Finder instead."
+                isMoving = false
+            }
         }
     }
 }

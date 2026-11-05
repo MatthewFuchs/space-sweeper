@@ -77,6 +77,8 @@ enum HelpContent {
                 answer: "It lets SpaceSweeper see folders macOS hides by default, such as Mail and other apps' data, so totals are complete. Without it those folders appear under Couldn't Scan."),
         HelpFAQ(question: "Can I undo a deletion?",
                 answer: "Yes, if you used Move to Trash: open the Trash in Finder and choose Put Back. \"Delete Permanently\" cannot be undone. The Activity Log lists everything removed."),
+        HelpFAQ(question: "Why did macOS warn me when I first opened SpaceSweeper?",
+                answer: "SpaceSweeper is a free app that isn't registered with Apple's paid developer program, so macOS asks you to confirm it once: open System Settings › Privacy & Security and click Open Anyway. Updates install from inside the app and don't ask again."),
         HelpFAQ(question: "Is Security Check an antivirus?",
                 answer: "No. It points out things that are unusual for legitimate software, such as a broken app signature, a program disguised as a document, or a hidden program that starts automatically, using checks macOS already provides. A flag isn't proof of malware, and no flag isn't proof of safety. macOS's built-in XProtect and Gatekeeper protect you as well."),
         HelpFAQ(question: "What does uninstalling remove?",

@@ -142,7 +142,8 @@ final class AppState {
         didSet { UserDefaults.standard.set(scanRoots, forKey: "scanRoots") }
     }
 
-    let homePath = NSHomeDirectory()
+    /// The user's home folder. Only the debug demo mode points it elsewhere, so screenshots show no real files.
+    private(set) var homePath = NSHomeDirectory()
     /// User preferences (Settings window).
     let settings = AppSettings()
     private let cache: ScanCache
@@ -204,11 +205,22 @@ final class AppState {
     /// True while Spotlight "last opened" dates are being loaded after a scan.
     private(set) var isLoadingDates = false
 
-    /// Starts a background scan of `scanRoots`. Progress is polled 10×/s so the UI never floods.
-    func startScan() {
+    /// When true (debug demo mode), scan results are never written to the cache.
+    var isDemo = false
+
+    /// Debug demo mode: treat a sample folder as the home folder and forget real results and Trash/system data.
+    func useDemoHome(_ path: String) {
+        homePath = path
+        PathUtil.displayHome = path
+        result = nil
+        trash = nil
+    }
+
+    /// Starts a background scan of `scanRoots` (or `roots`, for the debug demo). Progress is polled 10×/s.
+    func startScan(roots: [String]? = nil) {
         guard !isScanning else { return }
         let progress = ScanProgress()
-        var options = ScanOptions(roots: scanRoots, homePath: homePath)
+        var options = ScanOptions(roots: roots ?? scanRoots, homePath: roots?.first ?? homePath)
         options.excludedPaths = settings.excludedPaths
         // Show results first; Spotlight dates are loaded lazily afterwards.
         options.readSpotlightDates = false
@@ -284,7 +296,9 @@ final class AppState {
                 FileScanner.addLastUsedDates(&copy.files)
                 return copy
             }.value
+            let isDemo = self?.isDemo ?? false
             let saveError = await Task.detached(priority: .utility) { () -> String? in
+                if isDemo { return nil }
                 do { try cache.save(enriched); return nil } catch { return error.localizedDescription }
             }.value
             guard let self else { return }

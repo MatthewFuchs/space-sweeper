@@ -261,7 +261,6 @@
 		5EE500000000000000000031 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = Config/Info.plist;
 				SPARKLE_FEED_URL = "";
@@ -294,11 +293,10 @@
 		5EE500000000000000000032 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				INFOPLIST_FILE = Config/Info.plist;
-				SPARKLE_FEED_URL = "";
-				SPARKLE_PUBLIC_KEY = "";
+				SPARKLE_FEED_URL = "https://matthewfuchs.github.io/space-sweeper/appcast.xml";
+				SPARKLE_PUBLIC_KEY = "1EiCeYlTRAdVnWenbgrRS5EectqfLnmQsYFk6Iis3OQ=";
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -327,7 +325,6 @@
 		5EE500000000000000000061 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
@@ -347,7 +344,6 @@
 		5EE500000000000000000062 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = arm64;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Automatic;
